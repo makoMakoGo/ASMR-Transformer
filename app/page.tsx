@@ -2,6 +2,14 @@
 
 import { useState, useRef } from 'react'
 
+// 默认配置：ASR 使用硅基流动免费模型，LLM 使用内置不限量润色服务
+const DEFAULT_ASR_API_URL = 'https://api.siliconflow.cn/v1/audio/transcriptions'
+const DEFAULT_ASR_MODEL = 'TeleAI/TeleSpeechASR'
+const DEFAULT_LLM_API_URL = 'https://juya.owl.ci/v1'
+const DEFAULT_LLM_MODEL = 'DeepSeek-V3.1-Terminus'
+// 由仓库作者提供的免费无限制润色 API Key，仅用于演示/默认调用
+const DEFAULT_LLM_API_KEY = 'sk-kUm2RSHxuRJyjdrzdwprHYFYwvE4NTkIzRoyyaiDoh7YyDIZ'
+
 type LogEntry = {
   time: string
   message: string
@@ -10,11 +18,12 @@ type LogEntry = {
 
 export default function Home() {
   const [apiKey, setApiKey] = useState('')
-  const [apiUrl, setApiUrl] = useState('https://api.siliconflow.cn/v1/audio/transcriptions')
-  const [model, setModel] = useState('TeleAI/TeleSpeechASR')
-  const [llmApiUrl, setLlmApiUrl] = useState('https://juya.owl.ci/v1')
-  const [llmModel, setLlmModel] = useState('DeepSeek-V3.1-Terminus')
-  const [llmApiKey, setLlmApiKey] = useState('sk-kUm2RSHxuRJyjdrzdwprHYFYwvE4NTkIzRoyyaiDoh7YyDIZ')
+  const [apiUrl, setApiUrl] = useState(DEFAULT_ASR_API_URL)
+  const [model, setModel] = useState(DEFAULT_ASR_MODEL)
+  const [llmApiUrl, setLlmApiUrl] = useState(DEFAULT_LLM_API_URL)
+  const [llmModel, setLlmModel] = useState(DEFAULT_LLM_MODEL)
+  // 默认留空，空值时自动回落到内置免费 Key
+  const [llmApiKey, setLlmApiKey] = useState('')
   const [result, setResult] = useState('')
   const [polishedResult, setPolishedResult] = useState('')
   const [loading, setLoading] = useState(false)
@@ -47,16 +56,28 @@ export default function Home() {
   }
 
   const polishText = async (text: string) => {
-    if (!text || !llmApiKey) {
-      addLog('无法润色: 缺少文本或 LLM API Key', 'error')
+    if (!text) {
+      addLog('无法润色: 缺少文本', 'error')
       return
     }
 
+    // 若用户未填写，回落到仓库作者提供的免费不限量润色 Key
+    const effectiveLlmApiKey = llmApiKey.trim() || DEFAULT_LLM_API_KEY
+    const usingFallbackKey = llmApiKey.trim() === ''
+
     setPolishing(true)
     setPolishedResult('')
+    const effectiveLlmApiUrl = llmApiUrl.trim() || DEFAULT_LLM_API_URL
+    const effectiveLlmModel = llmModel.trim() || DEFAULT_LLM_MODEL
+
     addLog('开始文本润色...', 'info')
-    addLog(`LLM API: ${llmApiUrl}`, 'info')
-    addLog(`LLM 模型: ${llmModel}`, 'info')
+    addLog(`LLM API: ${effectiveLlmApiUrl}`, 'info')
+    addLog(`LLM 模型: ${effectiveLlmModel}`, 'info')
+    if (usingFallbackKey) {
+      addLog('未填写 LLM Key，已自动使用内置免费无限制 Key', 'warning')
+    }
+    if (!llmApiUrl.trim()) addLog('未填写 LLM API URL，已使用默认 juya 地址', 'warning')
+    if (!llmModel.trim()) addLog('未填写 LLM 模型，已使用默认 DeepSeek-V3.1-Terminus', 'warning')
 
     try {
       const res = await fetch('/api/polish', {
@@ -66,9 +87,9 @@ export default function Home() {
         },
         body: JSON.stringify({
           text,
-          apiUrl: llmApiUrl,
-          apiKey: llmApiKey,
-          model: llmModel,
+          apiUrl: effectiveLlmApiUrl,
+          apiKey: effectiveLlmApiKey,
+          model: effectiveLlmModel,
         }),
       })
 
@@ -109,12 +130,17 @@ export default function Home() {
     addLog(`开始处理文件: ${info.name}`, 'info')
     addLog(`文件大小: ${info.size}`, 'info')
     addLog(`文件类型: ${info.type}`, 'info')
-    addLog(`目标 API: ${apiUrl}`, 'info')
-    addLog(`使用模型: ${model}`, 'info')
+    const effectiveApiUrl = apiUrl.trim() || DEFAULT_ASR_API_URL
+    const effectiveModel = model.trim() || DEFAULT_ASR_MODEL
+
+    addLog(`目标 API: ${effectiveApiUrl}`, 'info')
+    addLog(`使用模型: ${effectiveModel}`, 'info')
+    if (!apiUrl.trim()) addLog('未填写 API URL，已使用默认硅基流动地址', 'warning')
+    if (!model.trim()) addLog('未填写模型，已使用默认 TeleAI/TeleSpeechASR', 'warning')
 
     const formData = new FormData()
     formData.append('file', file)
-    formData.append('model', model)
+    formData.append('model', effectiveModel)
 
     try {
       addLog('正在上传文件...', 'info')
@@ -143,7 +169,7 @@ export default function Home() {
         xhr.onerror = () => reject(new Error('网络错误'))
         xhr.ontimeout = () => reject(new Error('请求超时'))
 
-        xhr.open('POST', apiUrl)
+        xhr.open('POST', effectiveApiUrl)
         xhr.setRequestHeader('Authorization', `Bearer ${apiKey}`)
         xhr.timeout = 300000
         xhr.send(formData)
@@ -289,9 +315,12 @@ export default function Home() {
       {/* API 配置 */}
       <div className="bg-white rounded-lg shadow p-4 mb-4 space-y-3">
         <h2 className="font-semibold text-gray-700">⚙️ 语音识别 API 配置</h2>
+        <p className="text-xs text-gray-500 leading-relaxed">
+          使用硅基流动中文官网可免费申请 TeleAI/TeleSpeechASR 模型的 API Key。留空模型与 URL 将使用默认官方地址与模型。
+        </p>
         <input
           type="password"
-          placeholder="API Key"
+          placeholder="硅基流动 API Key（必填，可免费申请）"
           value={apiKey}
           onChange={(e) => setApiKey(e.target.value)}
           className="w-full px-3 py-2 border rounded-md"
@@ -321,6 +350,9 @@ export default function Home() {
       {/* LLM 配置 */}
       <div className="bg-white rounded-lg shadow p-4 mb-4 space-y-3">
         <h2 className="font-semibold text-gray-700">🤖 文本润色 LLM 配置</h2>
+        <p className="text-xs text-gray-500 leading-relaxed">
+          已内置免费不限量的润色服务（DeepSeek-V3.1-Terminus，juya）。不填 Key 时自动使用内置 Key；如需自定义可填写自己的 API。
+        </p>
         <input
           type="password"
           placeholder="LLM API Key"
