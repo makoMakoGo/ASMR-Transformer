@@ -109,6 +109,30 @@ The transcription process has granular status tracking:
 - Apple color palette via CSS variables (--apple-blue, --apple-green, etc.)
 - No CSS modules or styled-components
 
+## Git Commit Message Format
+
+**MUST follow the format defined in `.gitmessage`:**
+
+```
+<emoji> <type>: <subject>
+```
+
+Available types:
+- 🎉 init: 初始化
+- ✨ feat: 添加新功能
+- 🐛 fix: 修复 bug
+- 📝 docs: 文档修改
+- 🎨 style: 代码风格修改
+- ♻️ refactor: 代码重构
+- ⚡ perf: 性能优化
+- ✅ test: 测试用例
+- 🔨 build: 构建相关
+- 👷 ci: CI 配置
+- ❓ chore: 其它修改
+- ⬆️ deps: 依赖项修改
+
+Example: `✨ feat: 添加SSE流式润色功能`
+
 ## Important Notes
 
 - **No linting/formatting tools configured** - follow existing code style manually
