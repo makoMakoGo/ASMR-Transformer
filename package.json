@@ -5,7 +5,8 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start"
+    "start": "next start",
+    "prepare": "node -e \"try{require('child_process').execSync('sh scripts/setup-hooks.sh',{stdio:'inherit'})}catch(e){}\""
   },
   "dependencies": {
     "next": "^15.1.0",

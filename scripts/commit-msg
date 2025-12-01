@@ -1,0 +1,50 @@
+#!/bin/sh
+#
+# Git commit-msg hook: 验证提交信息格式
+# 格式要求: <emoji> <type>: <中文描述>
+#
+
+commit_msg_file=$1
+commit_msg=$(cat "$commit_msg_file")
+
+# 提取第一行（标题）
+title=$(echo "$commit_msg" | head -n 1)
+
+# 检查是否包含有效的 type
+valid=0
+
+case "$title" in
+    *"init:"*|*"release:"*|*"style:"*|*"feat:"*|*"fix:"*|*"docs:"*|*"refactor:"*|*"perf:"*|*"dx:"*|*"workflow:"*|*"types:"*|*"wip:"*|*"test:"*|*"build:"*|*"ci:"*|*"chore:"*|*"deps:"*)
+        valid=1
+        ;;
+esac
+
+if [ $valid -eq 0 ]; then
+    echo ""
+    echo "❌ 提交信息格式错误!"
+    echo ""
+    echo "正确格式: <emoji> <type>: <描述>"
+    echo ""
+    echo "可用的 type:"
+    echo "  🎉 init: 初始化"
+    echo "  ✨ feat: 添加新功能"
+    echo "  🐛 fix: 修复 bug"
+    echo "  📝 docs: 文档修改"
+    echo "  🎨 style: 代码风格修改"
+    echo "  ♻️ refactor: 代码重构"
+    echo "  ⚡ perf: 性能优化"
+    echo "  ✅ test: 测试用例"
+    echo "  🔨 build: 构建相关"
+    echo "  👷 ci: CI 配置"
+    echo "  ❓ chore: 其它修改"
+    echo "  ⬆️ deps: 依赖项修改"
+    echo "  🚀 release: 发布新版本"
+    echo ""
+    echo "示例: ✨ feat: 添加用户登录功能"
+    echo ""
+    echo "你的提交信息: $title"
+    echo ""
+    exit 1
+fi
+
+exit 0
