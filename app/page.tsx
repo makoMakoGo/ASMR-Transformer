@@ -1,19 +1,52 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 
-// 默认配置：ASR 使用硅基流动免费模型，LLM 使用内置不限量润色服务
+// 默认配置
 const DEFAULT_ASR_API_URL = 'https://api.siliconflow.cn/v1/audio/transcriptions'
 const DEFAULT_ASR_MODEL = 'TeleAI/TeleSpeechASR'
 const DEFAULT_LLM_API_URL = 'https://juya.owl.ci/v1'
 const DEFAULT_LLM_MODEL = 'DeepSeek-V3.1-Terminus'
-// 由仓库作者提供的免费无限制润色 API Key，仅用于演示/默认调用
 const DEFAULT_LLM_API_KEY = 'sk-kUm2RSHxuRJyjdrzdwprHYFYwvE4NTkIzRoyyaiDoh7YyDIZ'
+// 默认润色指令（用户可自定义）
+const DEFAULT_INSTRUCTIONS =
+  '请对以下语音转文字内容进行处理：1. 纠正错别字和语法错误 2. 添加适当的标点符号 3. 分段排版使内容更易读 4. 保持原意不变，不要添加或删除内容'
+
+const STORAGE_KEY = 'voice-to-text-settings'
+
+type Settings = {
+  apiKey: string
+  apiUrl: string
+  model: string
+  llmApiUrl: string
+  llmModel: string
+  llmApiKey: string
+  customInstructions: string
+}
 
 type LogEntry = {
   time: string
   message: string
   type: 'info' | 'success' | 'error' | 'warning'
+}
+
+const getStoredSettings = (): Settings | null => {
+  if (typeof window === 'undefined') return null
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY)
+    return stored ? JSON.parse(stored) : null
+  } catch {
+    return null
+  }
+}
+
+const saveSettings = (settings: Settings) => {
+  if (typeof window === 'undefined') return
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(settings))
+  } catch {
+    // ignore storage errors
+  }
 }
 
 export default function Home() {
@@ -22,29 +55,58 @@ export default function Home() {
   const [model, setModel] = useState(DEFAULT_ASR_MODEL)
   const [llmApiUrl, setLlmApiUrl] = useState(DEFAULT_LLM_API_URL)
   const [llmModel, setLlmModel] = useState(DEFAULT_LLM_MODEL)
-  // 默认留空，空值时自动回落到内置免费 Key
   const [llmApiKey, setLlmApiKey] = useState('')
+  const [customInstructions, setCustomInstructions] = useState(DEFAULT_INSTRUCTIONS)
+  const [settingsLoaded, setSettingsLoaded] = useState(false)
+
+  // Load settings from localStorage on mount
+  useEffect(() => {
+    const stored = getStoredSettings()
+    if (stored) {
+      setApiKey(stored.apiKey || '')
+      setApiUrl(stored.apiUrl || DEFAULT_ASR_API_URL)
+      setModel(stored.model || DEFAULT_ASR_MODEL)
+      setLlmApiUrl(stored.llmApiUrl || DEFAULT_LLM_API_URL)
+      setLlmModel(stored.llmModel || DEFAULT_LLM_MODEL)
+      setLlmApiKey(stored.llmApiKey || '')
+      setCustomInstructions(stored.customInstructions || DEFAULT_INSTRUCTIONS)
+    }
+    setSettingsLoaded(true)
+  }, [])
+
+  // Save settings to localStorage when they change
+  useEffect(() => {
+    if (!settingsLoaded) return
+    saveSettings({ apiKey, apiUrl, model, llmApiUrl, llmModel, llmApiKey, customInstructions })
+  }, [apiKey, apiUrl, model, llmApiUrl, llmModel, llmApiKey, customInstructions, settingsLoaded])
   const [result, setResult] = useState('')
   const [polishedResult, setPolishedResult] = useState('')
   const [loading, setLoading] = useState(false)
   const [polishing, setPolishing] = useState(false)
   const [recording, setRecording] = useState(false)
   const [uploadProgress, setUploadProgress] = useState(0)
-  const [status, setStatus] = useState<'idle' | 'uploading' | 'transcribing' | 'done' | 'error'>('idle')
+  const [status, setStatus] = useState<'idle' | 'uploading' | 'uploaded' | 'transcribing' | 'done' | 'error'>('idle')
+  const [statusMessage, setStatusMessage] = useState('')
   const [logs, setLogs] = useState<LogEntry[]>([])
   const [fileInfo, setFileInfo] = useState<{ name: string; size: string; type: string } | null>(null)
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [copied, setCopied] = useState(false)
   const [copiedPolished, setCopiedPolished] = useState(false)
+  const [showSettings, setShowSettings] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const chunksRef = useRef<Blob[]>([])
-  const logsEndRef = useRef<HTMLDivElement>(null)
+  const logsContainerRef = useRef<HTMLDivElement>(null)
 
   const addLog = (message: string, type: LogEntry['type'] = 'info') => {
     const time = new Date().toLocaleTimeString('zh-CN', { hour12: false })
     setLogs((prev) => [...prev, { time, message, type }])
-    setTimeout(() => logsEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100)
+    // 只在日志容器内滚动，不影响页面视口
+    setTimeout(() => {
+      if (logsContainerRef.current) {
+        logsContainerRef.current.scrollTop = logsContainerRef.current.scrollHeight
+      }
+    }, 100)
   }
 
   const clearLogs = () => setLogs([])
@@ -55,13 +117,13 @@ export default function Home() {
     return (bytes / (1024 * 1024)).toFixed(2) + ' MB'
   }
 
+
   const polishText = async (text: string) => {
     if (!text) {
       addLog('无法润色: 缺少文本', 'error')
       return
     }
 
-    // 若用户未填写，回落到仓库作者提供的免费不限量润色 Key
     const effectiveLlmApiKey = llmApiKey.trim() || DEFAULT_LLM_API_KEY
     const usingFallbackKey = llmApiKey.trim() === ''
 
@@ -74,33 +136,72 @@ export default function Home() {
     addLog(`LLM API: ${effectiveLlmApiUrl}`, 'info')
     addLog(`LLM 模型: ${effectiveLlmModel}`, 'info')
     if (usingFallbackKey) {
-      addLog('未填写 LLM Key，已自动使用内置免费无限制 Key', 'warning')
+      addLog('未填写 LLM Key，已自动使用内置免费 Key', 'warning')
     }
-    if (!llmApiUrl.trim()) addLog('未填写 LLM API URL，已使用默认 juya 地址', 'warning')
-    if (!llmModel.trim()) addLog('未填写 LLM 模型，已使用默认 DeepSeek-V3.1-Terminus', 'warning')
 
     try {
       const res = await fetch('/api/polish', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           text,
           apiUrl: effectiveLlmApiUrl,
           apiKey: effectiveLlmApiKey,
           model: effectiveLlmModel,
+          customInstructions: customInstructions.trim() || DEFAULT_INSTRUCTIONS,
         }),
       })
 
-      const data = await res.json()
+      // 检查是否为错误响应（JSON）
+      const contentType = res.headers.get('content-type') || ''
+      if (contentType.includes('application/json')) {
+        const data = await res.json()
+        addLog(`润色失败: ${data.error || JSON.stringify(data)}`, 'error')
+        setPolishing(false)
+        return
+      }
 
-      if (res.ok && data.choices?.[0]?.message?.content) {
-        const polished = data.choices[0].message.content
-        setPolishedResult(polished)
-        addLog(`润色完成! 文本长度: ${polished.length} 字符`, 'success')
+      // 处理 SSE 流式响应
+      if (!res.body) {
+        addLog('润色失败: 无响应数据', 'error')
+        setPolishing(false)
+        return
+      }
+
+      const reader = res.body.getReader()
+      const decoder = new TextDecoder()
+      let fullContent = ''
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+
+        const chunk = decoder.decode(value, { stream: true })
+        const lines = chunk.split('\n')
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            const data = line.slice(6)
+            if (data === '[DONE]') continue
+
+            try {
+              const parsed = JSON.parse(data)
+              const content = parsed.choices?.[0]?.delta?.content || ''
+              if (content) {
+                fullContent += content
+                setPolishedResult(fullContent)
+              }
+            } catch {
+              // 忽略解析错误
+            }
+          }
+        }
+      }
+
+      if (fullContent) {
+        addLog(`润色完成! 文本长度: ${fullContent.length} 字符`, 'success')
       } else {
-        addLog(`润色失败: ${JSON.stringify(data)}`, 'error')
+        addLog('润色完成但无内容返回', 'warning')
       }
     } catch (e) {
       const errorMsg = e instanceof Error ? e.message : String(e)
@@ -123,20 +224,18 @@ export default function Home() {
     setPolishedResult('')
     setUploadProgress(0)
     setStatus('uploading')
+    setStatusMessage('准备上传文件...')
 
     const info = { name: file.name, size: formatFileSize(file.size), type: file.type || 'unknown' }
     setFileInfo(info)
 
     addLog(`开始处理文件: ${info.name}`, 'info')
     addLog(`文件大小: ${info.size}`, 'info')
-    addLog(`文件类型: ${info.type}`, 'info')
     const effectiveApiUrl = apiUrl.trim() || DEFAULT_ASR_API_URL
     const effectiveModel = model.trim() || DEFAULT_ASR_MODEL
 
     addLog(`目标 API: ${effectiveApiUrl}`, 'info')
     addLog(`使用模型: ${effectiveModel}`, 'info')
-    if (!apiUrl.trim()) addLog('未填写 API URL，已使用默认硅基流动地址', 'warning')
-    if (!model.trim()) addLog('未填写模型，已使用默认 TeleAI/TeleSpeechASR', 'warning')
 
     const formData = new FormData()
     formData.append('file', file)
@@ -144,6 +243,7 @@ export default function Home() {
 
     try {
       addLog('正在上传文件...', 'info')
+      setStatusMessage('正在上传文件...')
 
       const xhr = new XMLHttpRequest()
 
@@ -151,10 +251,17 @@ export default function Home() {
         if (e.lengthComputable) {
           const percent = Math.round((e.loaded / e.total) * 100)
           setUploadProgress(percent)
-          if (percent % 20 === 0 || percent === 100) {
-            addLog(`上传进度: ${percent}% (${formatFileSize(e.loaded)} / ${formatFileSize(e.total)})`, 'info')
+          setStatusMessage(`正在上传 ${formatFileSize(e.loaded)} / ${formatFileSize(e.total)}`)
+          if (percent % 25 === 0 || percent === 100) {
+            addLog(`上传进度: ${percent}%`, 'info')
           }
         }
+      }
+
+      xhr.upload.onload = () => {
+        setStatus('uploaded')
+        setStatusMessage('上传完成，等待服务器响应...')
+        addLog('文件上传完成，等待服务器处理...', 'success')
       }
 
       const response = await new Promise<{ ok: boolean; status: number; data: Record<string, unknown> }>((resolve, reject) => {
@@ -173,33 +280,30 @@ export default function Home() {
         xhr.setRequestHeader('Authorization', `Bearer ${apiKey}`)
         xhr.timeout = 300000
         xhr.send(formData)
-
-        addLog('文件上传完成，等待服务器处理...', 'success')
-        setStatus('transcribing')
-        addLog('正在进行语音识别...', 'info')
       })
 
-      const elapsed = new Date().toLocaleTimeString('zh-CN', { hour12: false })
-      addLog(`收到服务器响应 (${elapsed})`, 'info')
-      addLog(`HTTP 状态码: ${response.status}`, response.ok ? 'success' : 'error')
+      // Server responded - now processing
+      setStatus('transcribing')
+      setStatusMessage('服务器正在进行语音识别...')
+      addLog('正在进行语音识别...', 'info')
 
       if (response.ok) {
         const text = (response.data.text as string) || ''
         setResult(text || '转录完成但无文本返回')
         setStatus('done')
+        setStatusMessage('转录完成')
         addLog(`转录成功! 文本长度: ${text.length} 字符`, 'success')
-        if (response.data.duration) {
-          addLog(`音频时长: ${response.data.duration} 秒`, 'info')
-        }
       } else {
         setResult(`错误: ${response.status} - ${JSON.stringify(response.data)}`)
         setStatus('error')
+        setStatusMessage('转录失败')
         addLog(`API 错误: ${JSON.stringify(response.data)}`, 'error')
       }
     } catch (e) {
       const errorMsg = e instanceof Error ? e.message : String(e)
       setResult(`请求失败: ${errorMsg}`)
       setStatus('error')
+      setStatusMessage('请求失败')
       addLog(`请求失败: ${errorMsg}`, 'error')
     } finally {
       setLoading(false)
@@ -239,7 +343,6 @@ export default function Home() {
 
         mediaRecorder.ondataavailable = (e) => {
           chunksRef.current.push(e.data)
-          addLog(`录音数据块: ${formatFileSize(e.data.size)}`, 'info')
         }
 
         mediaRecorder.onstop = () => {
@@ -248,7 +351,7 @@ export default function Home() {
           setSelectedFile(file)
           const info = { name: file.name, size: formatFileSize(blob.size), type: 'audio/webm' }
           setFileInfo(info)
-          addLog(`录音完成，总大小: ${info.size}，点击"开始转录"处理`, 'success')
+          addLog(`录音完成，总大小: ${info.size}`, 'success')
           stream.getTracks().forEach((t) => t.stop())
         }
 
@@ -285,282 +388,443 @@ export default function Home() {
     }
   }
 
-  const statusText = {
-    idle: '等待输入',
-    uploading: '上传中...',
-    transcribing: '转录中...',
-    done: '完成',
-    error: '出错',
+  const statusConfig = {
+    idle: { text: '准备就绪', color: 'bg-[#8E8E93]', textColor: 'text-[#8E8E93]' },
+    uploading: { text: '上传中', color: 'bg-[#007AFF]', textColor: 'text-[#007AFF]' },
+    uploaded: { text: '已上传', color: 'bg-[#34C759]', textColor: 'text-[#34C759]' },
+    transcribing: { text: '识别中', color: 'bg-[#FF9500]', textColor: 'text-[#FF9500]' },
+    done: { text: '已完成', color: 'bg-[#34C759]', textColor: 'text-[#34C759]' },
+    error: { text: '出错了', color: 'bg-[#FF3B30]', textColor: 'text-[#FF3B30]' },
   }
 
-  const statusColor = {
-    idle: 'bg-gray-200',
-    uploading: 'bg-blue-500',
-    transcribing: 'bg-yellow-500',
-    done: 'bg-green-500',
-    error: 'bg-red-500',
+  const logColors = {
+    info: 'text-[#8E8E93]',
+    success: 'text-[#34C759]',
+    error: 'text-[#FF3B30]',
+    warning: 'text-[#FF9500]',
   }
 
-  const logColor = {
-    info: 'text-gray-400',
-    success: 'text-green-400',
-    error: 'text-red-400',
-    warning: 'text-yellow-400',
-  }
 
   return (
-    <main className="max-w-4xl mx-auto p-6">
-      <h1 className="text-2xl font-bold text-center mb-6">🎙️ 语音转文字</h1>
-
-      {/* API 配置 */}
-      <div className="bg-white rounded-lg shadow p-4 mb-4 space-y-3">
-        <h2 className="font-semibold text-gray-700">⚙️ 语音识别 API 配置</h2>
-        <p className="text-xs text-gray-500 leading-relaxed">
-          使用硅基流动中文官网可免费申请 TeleAI/TeleSpeechASR 模型的 API Key。留空模型与 URL 将使用默认官方地址与模型。
-        </p>
-        <input
-          type="password"
-          placeholder="硅基流动 API Key（必填，可免费申请）"
-          value={apiKey}
-          onChange={(e) => setApiKey(e.target.value)}
-          className="w-full px-3 py-2 border rounded-md"
-        />
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="text-xs text-gray-500">API URL</label>
-            <input
-              type="text"
-              value={apiUrl}
-              onChange={(e) => setApiUrl(e.target.value)}
-              className="w-full px-3 py-2 border rounded-md text-sm"
-            />
-          </div>
-          <div>
-            <label className="text-xs text-gray-500">模型</label>
-            <input
-              type="text"
-              value={model}
-              onChange={(e) => setModel(e.target.value)}
-              className="w-full px-3 py-2 border rounded-md text-sm"
-            />
-          </div>
-        </div>
-      </div>
-
-      {/* LLM 配置 */}
-      <div className="bg-white rounded-lg shadow p-4 mb-4 space-y-3">
-        <h2 className="font-semibold text-gray-700">🤖 文本润色 LLM 配置</h2>
-        <p className="text-xs text-gray-500 leading-relaxed">
-          已内置免费不限量的润色服务（DeepSeek-V3.1-Terminus，juya）。不填 Key 时自动使用内置 Key；如需自定义可填写自己的 API。
-        </p>
-        <input
-          type="password"
-          placeholder="LLM API Key"
-          value={llmApiKey}
-          onChange={(e) => setLlmApiKey(e.target.value)}
-          className="w-full px-3 py-2 border rounded-md"
-        />
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="text-xs text-gray-500">LLM API URL</label>
-            <input
-              type="text"
-              value={llmApiUrl}
-              onChange={(e) => setLlmApiUrl(e.target.value)}
-              className="w-full px-3 py-2 border rounded-md text-sm"
-            />
-          </div>
-          <div>
-            <label className="text-xs text-gray-500">LLM 模型</label>
-            <input
-              type="text"
-              value={llmModel}
-              onChange={(e) => setLlmModel(e.target.value)}
-              className="w-full px-3 py-2 border rounded-md text-sm"
-            />
-          </div>
-        </div>
-      </div>
-
-      {/* 操作按钮 */}
-      <div className="bg-white rounded-lg shadow p-4 mb-4">
-        <div className="flex gap-3 mb-3">
-          <button
-            onClick={() => fileInputRef.current?.click()}
-            disabled={loading}
-            className="flex-1 bg-blue-500 text-white py-3 rounded-md hover:bg-blue-600 disabled:opacity-50"
-          >
-            📁 选择文件
-          </button>
-          <button
-            onClick={toggleRecording}
-            disabled={loading}
-            className={`flex-1 py-3 rounded-md text-white ${recording ? 'bg-red-500 hover:bg-red-600 animate-pulse' : 'bg-green-500 hover:bg-green-600'} disabled:opacity-50`}
-          >
-            {recording ? '⏹️ 停止录音' : '🎤 开始录音'}
-          </button>
-        </div>
-
-        {/* 已选文件显示 */}
-        {fileInfo && !loading && (
-          <div className="flex items-center justify-between p-3 bg-gray-50 rounded-md mb-3">
-            <div className="text-sm">
-              <span className="font-medium">{fileInfo.name}</span>
-              <span className="text-gray-500 ml-2">({fileInfo.size})</span>
-            </div>
-            <button
-              onClick={() => {
-                setSelectedFile(null)
-                setFileInfo(null)
-                if (fileInputRef.current) fileInputRef.current.value = ''
-              }}
-              className="text-gray-400 hover:text-red-500"
-            >
-              ✕
-            </button>
-          </div>
-        )}
-
-        {/* 开始转录按钮 */}
-        <button
-          onClick={handleStartTranscribe}
-          disabled={loading || !selectedFile}
-          className="w-full bg-purple-600 text-white py-3 rounded-md hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium"
-        >
-          {loading ? '处理中...' : '🚀 开始转录'}
-        </button>
-
-        <input ref={fileInputRef} type="file" accept="audio/*" onChange={handleFileChange} className="hidden" />
-      </div>
-
-      {/* 状态和进度 */}
-      <div className="bg-white rounded-lg shadow p-4 mb-4">
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-2">
-            <span className={`w-3 h-3 rounded-full ${statusColor[status]} ${status === 'transcribing' ? 'animate-pulse' : ''}`}></span>
-            <span className="font-medium">{statusText[status]}</span>
-          </div>
-        </div>
-
-        {/* 上传进度条 */}
-        {(status === 'uploading' || status === 'transcribing') && (
-          <div className="mb-3">
-            <div className="flex justify-between text-sm text-gray-600 mb-1">
-              <span>上传进度</span>
-              <span>{uploadProgress}%</span>
-            </div>
-            <div className="w-full bg-gray-200 rounded-full h-2">
-              <div
-                className="bg-blue-500 h-2 rounded-full transition-all duration-300"
-                style={{ width: `${uploadProgress}%` }}
-              ></div>
-            </div>
-          </div>
-        )}
-
-        {/* 转录进度指示 */}
-        {status === 'transcribing' && (
-          <div className="flex items-center gap-2 text-yellow-600">
-            <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-            </svg>
-            <span className="text-sm">服务器正在处理音频...</span>
-          </div>
-        )}
-      </div>
-
-      {/* 转录结果 */}
-      <div className="bg-white rounded-lg shadow p-4 mb-4">
-        <div className="flex justify-between items-center mb-2">
-          <h2 className="font-semibold text-gray-700">📝 原始转录结果</h2>
-          <div className="flex gap-2">
-            {result && !result.startsWith('错误') && !result.startsWith('请求失败') && (
-              <button
-                onClick={() => polishText(result)}
-                disabled={polishing}
-                className="px-4 py-1.5 rounded-md text-sm font-medium bg-orange-500 text-white hover:bg-orange-600 disabled:opacity-50"
-              >
-                {polishing ? '润色中...' : '✨ 润色排版'}
-              </button>
-            )}
-            {result && (
-              <button
-                onClick={handleCopy}
-                className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all ${
-                  copied ? 'bg-green-500 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }`}
-              >
-                {copied ? '✓ 已复制' : '📋 复制'}
-              </button>
-            )}
-          </div>
-        </div>
-        <div className="min-h-[100px] p-3 bg-gray-50 rounded-md text-gray-800 whitespace-pre-wrap">
-          {result || '等待输入...'}
-        </div>
-        {result && (
-          <div className="mt-2 text-sm text-gray-400">
-            共 {result.length} 字符
-          </div>
-        )}
-      </div>
-
-      {/* 润色结果 */}
-      <div className="bg-white rounded-lg shadow p-4 mb-4">
-        <div className="flex justify-between items-center mb-2">
-          <h2 className="font-semibold text-gray-700">✨ 润色后结果</h2>
-          {polishedResult && (
-            <button
-              onClick={handleCopyPolished}
-              className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all ${
-                copiedPolished ? 'bg-green-500 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
-            >
-              {copiedPolished ? '✓ 已复制' : '📋 一键复制'}
-            </button>
-          )}
-        </div>
-        <div className="min-h-[100px] p-3 bg-gradient-to-br from-orange-50 to-yellow-50 rounded-md text-gray-800 whitespace-pre-wrap">
-          {polishing ? (
-            <div className="flex items-center gap-2 text-orange-600">
-              <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+    <main className="min-h-screen bg-[#F2F2F7]">
+      {/* Header */}
+      <header className="glass sticky top-0 z-50 border-b border-black/5">
+        <div className="max-w-3xl mx-auto px-6 py-4 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#007AFF] to-[#AF52DE] flex items-center justify-center shadow-lg">
+              <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
               </svg>
-              <span>正在润色文本...</span>
             </div>
-          ) : (
-            polishedResult || '点击"润色排版"按钮处理原始文本...'
-          )}
-        </div>
-        {polishedResult && (
-          <div className="mt-2 text-sm text-gray-400">
-            共 {polishedResult.length} 字符
+            <div>
+              <h1 className="text-xl font-semibold text-[#1D1D1F]">语音转文字</h1>
+              <p className="text-xs text-[#8E8E93]">Voice to Text</p>
+            </div>
           </div>
-        )}
-      </div>
-
-      {/* 日志面板 */}
-      <div className="bg-white rounded-lg shadow p-4">
-        <div className="flex justify-between items-center mb-2">
-          <h2 className="font-semibold text-gray-700">📜 运行日志</h2>
-          <button onClick={clearLogs} className="text-xs text-gray-400 hover:text-gray-600">
-            清空日志
+          <button
+            onClick={() => setShowSettings(!showSettings)}
+            className="w-10 h-10 rounded-full bg-white/80 hover:bg-white flex items-center justify-center shadow-sm btn-press"
+          >
+            <svg className={`w-5 h-5 text-[#636366] transition-transform duration-300 ${showSettings ? 'rotate-90' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
           </button>
         </div>
-        <div className="h-48 overflow-y-auto bg-gray-900 rounded-md p-3 font-mono text-xs">
-          {logs.length === 0 ? (
-            <span className="text-gray-500">暂无日志...</span>
-          ) : (
-            logs.map((log, i) => (
-              <div key={i} className={logColor[log.type]}>
-                <span className="text-gray-500">[{log.time}]</span> {log.message}
+      </header>
+
+      <div className="max-w-3xl mx-auto px-6 py-8 space-y-6">
+        {/* Settings Panel */}
+        {showSettings && (
+          <div className="animate-fade-in space-y-4">
+            {/* ASR Config */}
+            <div className="bg-white rounded-2xl shadow-[var(--apple-shadow)] p-6 card-hover">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-8 h-8 rounded-lg bg-[#007AFF]/10 flex items-center justify-center">
+                  <svg className="w-4 h-4 text-[#007AFF]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                  </svg>
+                </div>
+                <div>
+                  <h2 className="font-semibold text-[#1D1D1F]">语音识别配置</h2>
+                  <p className="text-xs text-[#8E8E93]">ASR API Settings</p>
+                </div>
               </div>
-            ))
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-[#636366] mb-2">API Key</label>
+                  <input
+                    type="password"
+                    placeholder="硅基流动 API Key（必填）"
+                    value={apiKey}
+                    onChange={(e) => setApiKey(e.target.value)}
+                    className="w-full px-4 py-3 bg-[#F2F2F7] rounded-xl border-0 text-[#1D1D1F] placeholder-[#8E8E93] focus:ring-2 focus:ring-[#007AFF]/30 focus:bg-white transition-all"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-[#636366] mb-2">API URL</label>
+                    <input
+                      type="text"
+                      value={apiUrl}
+                      onChange={(e) => setApiUrl(e.target.value)}
+                      className="w-full px-4 py-3 bg-[#F2F2F7] rounded-xl border-0 text-sm text-[#1D1D1F] focus:ring-2 focus:ring-[#007AFF]/30 focus:bg-white transition-all"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-[#636366] mb-2">模型</label>
+                    <input
+                      type="text"
+                      value={model}
+                      onChange={(e) => setModel(e.target.value)}
+                      className="w-full px-4 py-3 bg-[#F2F2F7] rounded-xl border-0 text-sm text-[#1D1D1F] focus:ring-2 focus:ring-[#007AFF]/30 focus:bg-white transition-all"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* LLM Config */}
+            <div className="bg-white rounded-2xl shadow-[var(--apple-shadow)] p-6 card-hover">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-8 h-8 rounded-lg bg-[#AF52DE]/10 flex items-center justify-center">
+                  <svg className="w-4 h-4 text-[#AF52DE]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                  </svg>
+                </div>
+                <div>
+                  <h2 className="font-semibold text-[#1D1D1F]">文本润色配置</h2>
+                  <p className="text-xs text-[#8E8E93]">LLM Polish Settings · 内置免费服务</p>
+                </div>
+              </div>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-[#636366] mb-2">API Key（可选）</label>
+                  <input
+                    type="password"
+                    placeholder="留空使用内置免费 Key"
+                    value={llmApiKey}
+                    onChange={(e) => setLlmApiKey(e.target.value)}
+                    className="w-full px-4 py-3 bg-[#F2F2F7] rounded-xl border-0 text-[#1D1D1F] placeholder-[#8E8E93] focus:ring-2 focus:ring-[#AF52DE]/30 focus:bg-white transition-all"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-[#636366] mb-2">API URL</label>
+                    <input
+                      type="text"
+                      value={llmApiUrl}
+                      onChange={(e) => setLlmApiUrl(e.target.value)}
+                      className="w-full px-4 py-3 bg-[#F2F2F7] rounded-xl border-0 text-sm text-[#1D1D1F] focus:ring-2 focus:ring-[#AF52DE]/30 focus:bg-white transition-all"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-[#636366] mb-2">模型</label>
+                    <input
+                      type="text"
+                      value={llmModel}
+                      onChange={(e) => setLlmModel(e.target.value)}
+                      className="w-full px-4 py-3 bg-[#F2F2F7] rounded-xl border-0 text-sm text-[#1D1D1F] focus:ring-2 focus:ring-[#AF52DE]/30 focus:bg-white transition-all"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="block text-sm font-medium text-[#636366]">润色指令</label>
+                    <button
+                      onClick={() => setCustomInstructions(DEFAULT_INSTRUCTIONS)}
+                      className="text-xs text-[#AF52DE] hover:text-[#9B3DC9]"
+                    >
+                      恢复默认
+                    </button>
+                  </div>
+                  <textarea
+                    placeholder="自定义润色指令..."
+                    value={customInstructions}
+                    onChange={(e) => setCustomInstructions(e.target.value)}
+                    rows={3}
+                    className="w-full px-4 py-3 bg-[#F2F2F7] rounded-xl border-0 text-sm text-[#1D1D1F] placeholder-[#8E8E93] focus:ring-2 focus:ring-[#AF52DE]/30 focus:bg-white transition-all resize-none"
+                  />
+                  <p className="mt-1 text-xs text-[#8E8E93]">自定义如何处理文本，例如：纠错、分段、翻译等</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+
+        {/* Main Action Area */}
+        <div className="bg-white rounded-2xl shadow-[var(--apple-shadow)] p-6 card-hover">
+          {/* Action Buttons */}
+          <div className="flex gap-4 mb-6">
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              disabled={loading}
+              className="flex-1 flex items-center justify-center gap-3 py-4 px-6 bg-[#007AFF] text-white rounded-xl font-medium hover:bg-[#0066CC] disabled:opacity-50 disabled:cursor-not-allowed btn-press shadow-lg shadow-[#007AFF]/25"
+            >
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+              </svg>
+              选择文件
+            </button>
+            <button
+              onClick={toggleRecording}
+              disabled={loading}
+              className={`flex-1 flex items-center justify-center gap-3 py-4 px-6 rounded-xl font-medium btn-press shadow-lg ${
+                recording
+                  ? 'bg-[#FF3B30] text-white hover:bg-[#E6352B] shadow-[#FF3B30]/25 animate-pulse-ring'
+                  : 'bg-[#34C759] text-white hover:bg-[#2DB84E] shadow-[#34C759]/25'
+              } disabled:opacity-50 disabled:cursor-not-allowed`}
+            >
+              {recording ? (
+                <>
+                  <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                    <rect x="6" y="6" width="12" height="12" rx="2" />
+                  </svg>
+                  停止录音
+                </>
+              ) : (
+                <>
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+                  </svg>
+                  开始录音
+                </>
+              )}
+            </button>
+          </div>
+
+          {/* Selected File Display */}
+          {fileInfo && !loading && (
+            <div className="flex items-center justify-between p-4 bg-[#F2F2F7] rounded-xl mb-6 animate-fade-in">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg bg-[#007AFF]/10 flex items-center justify-center">
+                  <svg className="w-5 h-5 text-[#007AFF]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" />
+                  </svg>
+                </div>
+                <div>
+                  <p className="font-medium text-[#1D1D1F]">{fileInfo.name}</p>
+                  <p className="text-sm text-[#8E8E93]">{fileInfo.size}</p>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  setSelectedFile(null)
+                  setFileInfo(null)
+                  if (fileInputRef.current) fileInputRef.current.value = ''
+                }}
+                className="w-8 h-8 rounded-full bg-[#8E8E93]/10 hover:bg-[#FF3B30]/10 flex items-center justify-center group"
+              >
+                <svg className="w-4 h-4 text-[#8E8E93] group-hover:text-[#FF3B30]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
           )}
-          <div ref={logsEndRef} />
+
+          {/* Start Transcribe Button */}
+          <button
+            onClick={handleStartTranscribe}
+            disabled={loading || !selectedFile}
+            className="w-full py-4 bg-gradient-to-r from-[#AF52DE] to-[#007AFF] text-white rounded-xl font-semibold hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed btn-press shadow-lg shadow-[#AF52DE]/20"
+          >
+            {loading ? (
+              <span className="flex items-center justify-center gap-2">
+                <svg className="animate-spin w-5 h-5" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                </svg>
+                处理中...
+              </span>
+            ) : (
+              '开始转录'
+            )}
+          </button>
+
+          <input ref={fileInputRef} type="file" accept="audio/*" onChange={handleFileChange} className="hidden" />
         </div>
+
+        {/* Status & Progress */}
+        {(status !== 'idle' || loading) && (
+          <div className="bg-white rounded-2xl shadow-[var(--apple-shadow)] p-6 animate-fade-in">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <span className={`w-3 h-3 rounded-full ${statusConfig[status].color} ${status === 'transcribing' || status === 'uploading' || status === 'uploaded' ? 'animate-pulse' : ''}`}></span>
+                <span className={`font-medium ${statusConfig[status].textColor}`}>{statusConfig[status].text}</span>
+              </div>
+              {status === 'uploading' && <span className="text-sm text-[#8E8E93]">{uploadProgress}%</span>}
+            </div>
+
+            {/* Progress Bar - only show during upload */}
+            {status === 'uploading' && (
+              <div className="relative w-full h-2 bg-[#F2F2F7] rounded-full overflow-hidden mb-3">
+                <div
+                  className={`absolute left-0 top-0 h-full rounded-full transition-all duration-300 ${statusConfig[status].color}`}
+                  style={{ width: `${uploadProgress}%` }}
+                >
+                  <div className="absolute inset-0 progress-shine"></div>
+                </div>
+              </div>
+            )}
+
+            {/* Indeterminate progress for server processing */}
+            {(status === 'uploaded' || status === 'transcribing') && (
+              <div className="relative w-full h-2 bg-[#F2F2F7] rounded-full overflow-hidden mb-3">
+                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-[#FF9500] to-transparent animate-[progress-shine_1.5s_ease-in-out_infinite]" style={{ backgroundSize: '200% 100%' }}></div>
+              </div>
+            )}
+
+            {/* Status message */}
+            {statusMessage && (
+              <p className="text-sm text-[#8E8E93] flex items-center gap-2">
+                {(status === 'uploading' || status === 'uploaded' || status === 'transcribing') && (
+                  <svg className="animate-spin w-4 h-4 flex-shrink-0" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                  </svg>
+                )}
+                {status === 'done' && (
+                  <svg className="w-4 h-4 text-[#34C759] flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                )}
+                {status === 'error' && (
+                  <svg className="w-4 h-4 text-[#FF3B30] flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                )}
+                {statusMessage}
+              </p>
+            )}
+          </div>
+        )}
+
+
+        {/* Results Section */}
+        <div className="grid gap-6 md:grid-cols-2">
+          {/* Original Result */}
+          <div className="bg-white rounded-2xl shadow-[var(--apple-shadow)] p-6 card-hover">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-lg bg-[#007AFF]/10 flex items-center justify-center">
+                  <svg className="w-4 h-4 text-[#007AFF]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                </div>
+                <h2 className="font-semibold text-[#1D1D1F]">原始结果</h2>
+              </div>
+              <div className="flex gap-2">
+                {result && !result.startsWith('错误') && !result.startsWith('请求失败') && (
+                  <button
+                    onClick={() => polishText(result)}
+                    disabled={polishing}
+                    className="px-4 py-2 bg-[#FF9500] text-white rounded-lg text-sm font-medium hover:bg-[#E68600] disabled:opacity-50 btn-press"
+                  >
+                    {polishing ? '润色中...' : '✨ 润色'}
+                  </button>
+                )}
+                {result && (
+                  <button
+                    onClick={handleCopy}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium btn-press transition-all ${
+                      copied ? 'bg-[#34C759] text-white' : 'bg-[#F2F2F7] text-[#636366] hover:bg-[#E5E5EA]'
+                    }`}
+                  >
+                    {copied ? '✓ 已复制' : '复制'}
+                  </button>
+                )}
+              </div>
+            </div>
+            <div className="min-h-[160px] p-4 bg-[#F2F2F7] rounded-xl text-[#1D1D1F] whitespace-pre-wrap text-sm leading-relaxed">
+              {result || <span className="text-[#8E8E93]">等待输入...</span>}
+            </div>
+            {result && (
+              <p className="mt-3 text-xs text-[#8E8E93]">{result.length} 字符</p>
+            )}
+          </div>
+
+          {/* Polished Result */}
+          <div className="bg-white rounded-2xl shadow-[var(--apple-shadow)] p-6 card-hover">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-lg bg-[#AF52DE]/10 flex items-center justify-center">
+                  <svg className="w-4 h-4 text-[#AF52DE]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+                  </svg>
+                </div>
+                <h2 className="font-semibold text-[#1D1D1F]">润色结果</h2>
+              </div>
+              {polishedResult && (
+                <button
+                  onClick={handleCopyPolished}
+                  className={`px-4 py-2 rounded-lg text-sm font-medium btn-press transition-all ${
+                    copiedPolished ? 'bg-[#34C759] text-white' : 'bg-[#F2F2F7] text-[#636366] hover:bg-[#E5E5EA]'
+                  }`}
+                >
+                  {copiedPolished ? '✓ 已复制' : '复制'}
+                </button>
+              )}
+            </div>
+            <div className="min-h-[160px] p-4 bg-gradient-to-br from-[#AF52DE]/5 to-[#007AFF]/5 rounded-xl text-[#1D1D1F] whitespace-pre-wrap text-sm leading-relaxed">
+              {polishing ? (
+                <div className="flex items-center gap-2 text-[#AF52DE]">
+                  <svg className="animate-spin w-4 h-4" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                  </svg>
+                  正在润色文本...
+                </div>
+              ) : (
+                polishedResult || <span className="text-[#8E8E93]">点击"润色"按钮处理原始文本...</span>
+              )}
+            </div>
+            {polishedResult && (
+              <p className="mt-3 text-xs text-[#8E8E93]">{polishedResult.length} 字符</p>
+            )}
+          </div>
+        </div>
+
+        {/* Logs Panel */}
+        <div className="bg-white rounded-2xl shadow-[var(--apple-shadow)] p-6">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-lg bg-[#636366]/10 flex items-center justify-center">
+                <svg className="w-4 h-4 text-[#636366]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+              </div>
+              <h2 className="font-semibold text-[#1D1D1F]">运行日志</h2>
+            </div>
+            <button
+              onClick={clearLogs}
+              className="text-sm text-[#8E8E93] hover:text-[#636366] transition-colors"
+            >
+              清空
+            </button>
+          </div>
+          <div
+            ref={logsContainerRef}
+            className="h-48 overflow-y-auto bg-[#1C1C1E] rounded-xl p-4 font-mono text-xs space-y-1"
+          >
+            {logs.length === 0 ? (
+              <span className="text-[#636366]">暂无日志...</span>
+            ) : (
+              logs.map((log, i) => (
+                <div key={i} className={`${logColors[log.type]} animate-slide-in`}>
+                  <span className="text-[#48484A]">[{log.time}]</span> {log.message}
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+
+        {/* Footer */}
+        <footer className="text-center py-6">
+          <p className="text-sm text-[#8E8E93]">
+            Powered by SiliconFlow ASR & DeepSeek LLM
+          </p>
+        </footer>
       </div>
     </main>
   )

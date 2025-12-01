@@ -1,40 +1,37 @@
-# 语音转文字工具
+# 🎙️ 语音转文字工具
 
-基于 Next.js 15 + TypeScript + Tailwind CSS 的语音识别与文本润色工具。
+一款简洁优雅的语音识别与文本润色工具，采用 Apple 风格设计，支持音频文件上传和实时录音。
 
-## 功能
+![界面预览](docs/image-1.png)
 
-- 上传音频文件或实时录音
-- 调用 SiliconFlow API 进行语音转文字
-- 调用 LLM API 对转录结果进行纠错和排版
-- 实时显示上传进度和处理日志
+## ✨ 特性
 
-## API 说明
+- **语音识别** - 支持上传音频文件或直接录音，调用硅基流动 ASR API 进行高精度语音转文字
+- **智能润色** - 内置免费 LLM 润色服务，自动纠错、添加标点、分段排版
+- **自定义润色指令** - 可自定义润色规则，适配不同场景（会议记录、采访整理、翻译等）
+- **设置持久化** - 所有配置自动保存到浏览器 localStorage，下次打开无需重新填写
+- **实时进度** - 详细的上传进度、处理状态和运行日志
+- **Apple 风格 UI** - 圆润卡片、毛玻璃效果、流畅动画，简洁美观
 
-- 语音转文字：使用硅基流动中文官网可免费申请的 `TeleAI/TeleSpeechASR` 模型，默认 API URL `https://api.siliconflow.cn/v1/audio/transcriptions`。
-- 文本润色：内置免费不限量的润色服务（模型 `DeepSeek-V3.1-Terminus`，API `https://juya.owl.ci/v1`），不填写 Key 时会自动使用内置 Key；如需自定义可在界面填写自己的 API/模型/Key。
+## 🚀 部署方式
 
-## 本地运行
+### 方式一：本地运行
 
 ```bash
 # 克隆项目
 git clone <repo-url>
-cd Gradio-Web-Audio
+cd audio-transcription
 
 # 安装依赖
 npm install
 
-# 开发模式
+# 启动开发服务器
 npm run dev
-
-# 生产构建与启动
-npm run build
-npm start
 ```
 
-访问 http://localhost:3000
+打开浏览器访问 http://localhost:3000
 
-## Docker 部署
+### 方式二：Docker 部署（推荐生产环境）
 
 ```bash
 docker compose up -d --build
@@ -42,8 +39,69 @@ docker compose up -d --build
 
 访问 http://your-server:3000
 
-## 配置
+## 🔧 配置说明
 
-在界面中填写：
-- 语音识别 API Key 和 URL
-- LLM API Key 和 URL（用于文本润色）
+### 语音识别 API（必填）
+
+使用硅基流动提供的免费 ASR 服务：
+
+1. 访问 [硅基流动官网](https://siliconflow.cn) 注册账号
+2. 在控制台获取 API Key
+3. 在工具设置中填入 API Key
+
+默认配置：
+- API URL: `https://api.siliconflow.cn/v1/audio/transcriptions`
+- 模型: `TeleAI/TeleSpeechASR`
+
+### 文本润色 API（可选）
+
+工具内置了免费不限量的润色服务，开箱即用，无需配置。
+
+如需使用自己的 LLM API：
+- 支持任何 OpenAI 兼容的 API（如 OpenAI、DeepSeek、通义千问等）
+- 在设置中填写 API URL、模型名称和 API Key
+
+### 自定义润色指令
+
+可在设置中修改润色指令，例如：
+- 默认：纠错、添加标点、分段排版
+- 会议记录：提取要点、整理成会议纪要格式
+- 翻译：将内容翻译成英文
+
+## 📁 项目结构
+
+```
+├── app/
+│   ├── api/polish/route.ts   # LLM 润色 API 代理
+│   ├── globals.css           # 全局样式（Apple 设计系统）
+│   ├── layout.tsx            # 根布局
+│   └── page.tsx              # 主页面组件
+├── docs/
+│   └── image-1.png           # 界面截图
+├── Dockerfile                # Docker 构建配置
+├── docker-compose.yml        # Docker Compose 配置
+└── package.json
+```
+
+## 🛠️ 技术栈
+
+- **框架**: Next.js 15 (App Router)
+- **语言**: TypeScript 5.7
+- **UI**: React 19 + Tailwind CSS 3.4
+- **部署**: Vercel / Docker / Node.js
+
+## 📝 使用流程
+
+1. 点击设置图标，填入硅基流动 API Key
+2. 选择音频文件或点击录音按钮
+3. 点击「开始转录」等待识别完成
+4. 查看原始结果，点击「润色」进行智能排版
+5. 复制润色后的文本使用
+
+## 🤝 贡献
+
+欢迎提交 Issue 和 Pull Request！
+
+## 📄 License
+
+MIT
