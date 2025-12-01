@@ -25,8 +25,8 @@
 
 ```bash
 # 克隆项目
-git clone <repo-url>
-cd audio-transcription
+git clone https://github.com/zhu-jl18/ASMR-Transformer.git
+cd ASMR-Transformer
 
 # 安装依赖
 npm install
