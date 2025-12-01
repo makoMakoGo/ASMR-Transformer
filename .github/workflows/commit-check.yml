@@ -1,0 +1,67 @@
+name: 检查提交信息格式
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  check-commits:
+    name: 验证提交信息
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 检查提交信息格式
+        run: |
+          echo "🔍 检查 PR 中的提交信息..."
+          
+          # 获取 PR 中的所有提交
+          commits=$(git log --format="%s" origin/${{ github.base_ref }}..${{ github.head_ref }} 2>/dev/null || git log --format="%s" -n 20)
+          
+          # 有效的 type 列表
+          valid_types="init|release|style|feat|fix|docs|refactor|perf|dx|workflow|types|wip|test|build|ci|chore|deps"
+          
+          failed=0
+          
+          while IFS= read -r msg; do
+            if [ -z "$msg" ]; then
+              continue
+            fi
+            
+            # 检查是否包含有效的 type
+            if echo "$msg" | grep -qE "($valid_types):"; then
+              echo "✅ $msg"
+            else
+              echo "❌ $msg"
+              failed=1
+            fi
+          done <<< "$commits"
+          
+          if [ $failed -eq 1 ]; then
+            echo ""
+            echo "❌ 提交信息格式错误!"
+            echo ""
+            echo "正确格式: <emoji> <type>: <描述>"
+            echo ""
+            echo "可用的 type:"
+            echo "  🎉 init: 初始化"
+            echo "  ✨ feat: 添加新功能"
+            echo "  🐛 fix: 修复 bug"
+            echo "  📝 docs: 文档修改"
+            echo "  🎨 style: 代码风格修改"
+            echo "  ♻️ refactor: 代码重构"
+            echo "  ⚡ perf: 性能优化"
+            echo "  ✅ test: 测试用例"
+            echo "  🔨 build: 构建相关"
+            echo "  👷 ci: CI 配置"
+            echo "  ❓ chore: 其它修改"
+            echo "  ⬆️ deps: 依赖项修改"
+            echo ""
+            exit 1
+          fi
+          
+          echo ""
+          echo "✅ 所有提交信息格式正确!"
