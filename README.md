@@ -4,6 +4,12 @@
 
 ![界面预览](docs/image-1.png)
 
+## 📋 TODO
+
+- [ ] 增加音频来源，支持从 [asmrgay.com](https://asmrgay.com/asmr) 链接在线导入
+- [ ] 做更多模型适配，探索更多 Audio-to-Text 模型
+- [ ] 扩充功能：识别后由 AI 定制仿写 ASMR 内容，并通过音色克隆进行 TTS
+
 ## ✨ 特性
 
 - **语音识别** - 支持上传音频文件或直接录音，调用硅基流动 ASR API 进行高精度语音转文字
