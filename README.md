@@ -1,19 +1,24 @@
-# 🎙️ 语音转文字工具
+# 🎙️ ASMR Transformer
 
-> 最终是想要 [橘鸦Juya](https://space.bilibili.com/285286947)  音色 来搞 定制化 ASMR，想想牛牛就硬硬的 🥵🥵🥵 
+<p align="center">
+  <img src="docs/juya-foot.jpg" alt="橘鸦的诱惑" width="400" />
+</p>
 
+<p align="center">
+  <em>最终是想要 <a href="https://space.bilibili.com/285286947">橘鸦Juya</a> 音色来搞定制化 ASMR，想想牛牛就硬硬的 🥵🥵🥵</em>
+</p>
 
-![橘鸦的诱惑](docs/juya-foot.jpg)
+<p align="center">
+  <a href="#-特性">特性</a> •
+  <a href="#-部署方式">部署</a> •
+  <a href="#-配置说明">配置</a> •
+  <a href="#-联动食用">联动</a> •
+  <a href="#-license">License</a>
+</p>
 
-
+---
 
 一款简洁优雅的语音识别与文本润色工具，采用 Apple 风格设计，支持音频文件上传和实时录音。
-
-
-
-
-
-
 
 ![界面预览](docs/image-1.png)
 
@@ -25,12 +30,12 @@
 
 ## ✨ 特性
 
-- **语音识别** - 支持上传音频文件或直接录音，调用硅基流动 ASR API 进行高精度语音转文字
-- **智能润色** - 内置免费 LLM 润色服务，自动纠错、添加标点、分段排版
-- **自定义润色指令** - 可自定义润色规则，适配不同场景（会议记录、采访整理、翻译等）
-- **设置持久化** - 所有配置自动保存到浏览器 localStorage，下次打开无需重新填写
-- **实时进度** - 详细的上传进度、处理状态和运行日志
-- **Apple 风格 UI** - 圆润卡片、毛玻璃效果、流畅动画，简洁美观
+- **🎤 语音识别** - 支持上传音频文件或直接录音，调用硅基流动 ASR API 进行高精度语音转文字
+- **✨ 智能润色** - 内置免费 LLM 润色服务，自动纠错、添加标点、分段排版
+- **🎯 自定义润色指令** - 可自定义润色规则，适配不同场景（会议记录、采访整理、翻译等）
+- **💾 设置持久化** - 所有配置自动保存到浏览器 localStorage，下次打开无需重新填写
+- **📊 实时进度** - 详细的上传进度、处理状态和运行日志
+- **🍎 Apple 风格 UI** - 圆润卡片、毛玻璃效果、流畅动画，简洁美观
 
 ## 🚀 部署方式
 
@@ -87,6 +92,23 @@ docker compose up -d --build
 - 会议记录：提取要点、整理成会议纪要格式
 - 翻译：将内容翻译成英文
 
+## 🔗 联动食用
+
+<table>
+  <tr>
+    <td>
+      <a href="https://github.com/OuroChival-Shizue/My_Chat_Window_Can_Not_Be_A_GalGame">
+        <img src="https://github-readme-stats.vercel.app/api/pin/?username=OuroChival-Shizue&repo=My_Chat_Window_Can_Not_Be_A_GalGame&theme=radical&border_color=ff69b4&bg_color=0d1117&title_color=ff69b4&icon_color=ff69b4" alt="My_Chat_Window_Can_Not_Be_A_GalGame" />
+      </a>
+    </td>
+  </tr>
+</table>
+
+<blockquote>
+🎮 <b>把聊天窗口变成 GalGame！</b><br/>
+配合本项目食用更佳~ ASMR 转文字 → GalGame 对话框，二次元浓度拉满！
+</blockquote>
+
 ## 📁 项目结构
 
 ```
@@ -104,18 +126,27 @@ docker compose up -d --build
 
 ## 🛠️ 技术栈
 
-- **框架**: Next.js 15 (App Router)
-- **语言**: TypeScript 5.7
-- **UI**: React 19 + Tailwind CSS 3.4
-- **部署**: Vercel / Docker / Node.js
+| 技术 | 版本 |
+|------|------|
+| Next.js | 15 (App Router) |
+| TypeScript | 5.7 |
+| React | 19 |
+| Tailwind CSS | 3.4 |
+| 部署 | Docker / Node.js |
 
 ## 📝 使用流程
 
-1. 点击设置图标，填入硅基流动 API Key
-2. 选择音频文件或点击录音按钮
-3. 点击「开始转录」等待识别完成
-4. 查看原始结果，点击「润色」进行智能排版
-5. 复制润色后的文本使用
+```
+1️⃣ 点击设置图标，填入硅基流动 API Key
+        ↓
+2️⃣ 选择音频文件或点击录音按钮
+        ↓
+3️⃣ 点击「开始转录」等待识别完成
+        ↓
+4️⃣ 查看原始结果，点击「润色」进行智能排版
+        ↓
+5️⃣ 复制润色后的文本使用
+```
 
 ## 🤝 贡献
 
@@ -123,4 +154,4 @@ docker compose up -d --build
 
 ## 📄 License
 
-MIT
+[MIT](LICENSE) © 2025 zhu-jl18
