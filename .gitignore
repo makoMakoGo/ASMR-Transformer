@@ -2,4 +2,6 @@ node_modules
 .next
 .env
 .env.local
+.env.test
 *.log
+coverage
