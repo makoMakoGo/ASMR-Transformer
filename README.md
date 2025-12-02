@@ -1,7 +1,7 @@
 # 🎙️ ASMR Transformer
 
 <p align="center">
-  <img src="docs/juya-foot.jpg" alt="橘鸦的诱惑" width="400" />
+  <img src="docs/images/juya-foot.jpg" alt="橘鸦的诱惑" width="400" />
 </p>
 
 <p align="center">
@@ -20,13 +20,14 @@
 
 一款简洁优雅的语音识别与文本润色工具，采用 Apple 风格设计，支持音频文件上传和实时录音。
 
-![界面预览](docs/image-1.png)
+![界面预览](docs/images/image-1.png)
 
 ## 📋 TODO
 
 - [ ] 增加音频来源，支持从 [asmrgay.com](https://asmrgay.com/asmr) 链接在线导入
 - [ ] 做更多模型适配，探索更多 Audio-to-Text 模型
 - [ ] 扩充功能：识别后由 AI 定制仿写 ASMR 内容，并通过音色克隆进行 TTS
+- [ ] API 接口同步支持远程服务器部署（Deno Deploy、Docker 等）
 
 ## ✨ 特性
 
@@ -51,9 +52,12 @@ npm install
 
 # 启动开发服务器
 npm run dev
+
+# 或指定端口
+npm run dev -- -p 3092
 ```
 
-打开浏览器访问 http://localhost:3000
+打开浏览器访问 http://localhost:3000 (或自定义端口)
 
 ### 方式二：Docker 部署（推荐生产环境）
 
@@ -113,12 +117,23 @@ docker compose up -d --build
 
 ```
 ├── app/
-│   ├── api/polish/route.ts   # LLM 润色 API 代理
+│   ├── api/
+│   │   ├── docs/route.ts     # API 文档端点
+│   │   ├── polish/route.ts   # LLM 润色 API
+│   │   └── transcribe/route.ts # 一站式转录 API
+│   ├── docs/page.tsx         # API 文档页面
 │   ├── globals.css           # 全局样式（Apple 设计系统）
 │   ├── layout.tsx            # 根布局
 │   └── page.tsx              # 主页面组件
 ├── docs/
-│   └── image-1.png           # 界面截图
+│   ├── api.md                # API 文档
+│   ├── testing.md            # 测试指南
+│   └── images/               # 图片资源
+├── tests/                    # 测试文件
+│   ├── setup.ts              # 测试配置
+│   ├── api/                  # API 测试
+│   └── unit/                 # 单元测试
+├── for-test/                 # 测试资源
 ├── Dockerfile                # Docker 构建配置
 ├── docker-compose.yml        # Docker Compose 配置
 └── package.json
@@ -147,6 +162,42 @@ docker compose up -d --build
         ↓
 5️⃣ 复制润色后的文本使用
 ```
+
+## 🧪 测试
+
+```bash
+# 配置环境变量
+cp .env.example .env.local
+# 编辑 .env.local 填入 ASR_API_KEY
+
+# 运行单元测试
+npm run test:unit
+
+# 运行 API 测试（需先启动 npm run dev）
+npm run test:api
+
+# 运行所有测试
+npm test
+```
+
+详见 [测试指南](docs/testing.md)
+
+## 🔌 API 接口
+
+服务启动后可通过 API 调用：
+
+```bash
+# 一站式转录（音频 → 文字 → 润色）
+curl -X POST http://localhost:3000/api/transcribe \
+  -F "file=@audio.mp3" \
+  -F "asrApiKey=sk-xxx" \
+  -F "polish=true"
+
+# 获取 API 文档
+curl http://localhost:3000/api/docs
+```
+
+详见 [API 文档](docs/api.md) 或访问 http://localhost:3000/docs
 
 ## 🤝 贡献
 
