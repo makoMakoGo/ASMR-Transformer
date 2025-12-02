@@ -184,13 +184,16 @@ npm test
 
 ## 🔌 API 接口
 
-服务启动后可通过 API 调用：
+服务启动后可通过 API 调用。配置 `.env` 后无需在命令中传递 API Key：
 
 ```bash
+# 配置环境变量（首次使用）
+cp .env.example .env
+# 编辑 .env 填入 ASR_API_KEY
+
 # 一站式转录（音频 → 文字 → 润色）
 curl -X POST http://localhost:3000/api/transcribe \
   -F "file=@audio.mp3" \
-  -F "asrApiKey=sk-xxx" \
   -F "polish=true"
 
 # 获取 API 文档
