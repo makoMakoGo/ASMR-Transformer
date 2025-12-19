@@ -18,20 +18,20 @@
 
 ---
 
-一款简洁优雅的语音识别与文本润色工具，采用 Apple 风格设计，支持音频文件上传和实时录音。
+一款简洁优雅的语音识别与文本润色工具，采用 Apple 风格设计，支持音频文件上传、从 asmrgay.com 及备用站在线导入/下载音频。
 
 ![界面预览](docs/images/image-1.png)
 
-## 📋 TODO
+## 📋 TODO / 进展
 
-- [ ] 增加音频来源，支持从 [asmrgay.com](https://asmrgay.com/asmr) 链接在线导入
+- [x] 增加音频来源，支持从 [asmrgay.com](https://asmrgay.com/asmr) 链接在线导入
 - [ ] 做更多模型适配，探索更多 Audio-to-Text 模型
 - [ ] 扩充功能：识别后由 AI 定制仿写 ASMR 内容，并通过音色克隆进行 TTS
 - [ ] API 接口同步支持远程服务器部署（Deno Deploy、Docker 等）
 
 ## ✨ 特性
 
-- **🎤 语音识别** - 支持上传音频文件或直接录音，调用硅基流动 ASR API 进行高精度语音转文字
+- **🎤 语音识别** - 支持上传音频文件或粘贴 asmrgay.com 及备用站 URL，调用硅基流动 ASR API 进行高精度语音转文字
 - **✨ 智能润色** - 内置免费 LLM 润色服务，自动纠错、添加标点、分段排版
 - **🎯 自定义润色指令** - 可自定义润色规则，适配不同场景（会议记录、采访整理、翻译等）
 - **💾 设置持久化** - 所有配置自动保存到浏览器 localStorage，下次打开无需重新填写
@@ -96,6 +96,20 @@ docker compose up -d --build
 - 会议记录：提取要点、整理成会议纪要格式
 - 翻译：将内容翻译成英文
 
+### 在线音频链接
+
+支持 asmrgay.com 主站及备用站（asmr.pw、asmr.loan、asmr.party、asmr.stream）的播放页面 URL，以及 .mp3/.wav 等直链。
+
+1. 在主界面"在线链接"输入框粘贴链接
+2. 选择操作：
+   - **下载到本地** - 仅下载音频到 `./audio/` 目录，不转录
+   - **直接转录** - 下载并立即转录（需先配置 ASR API Key）
+3. 服务器会自动解析播放页面、跟随跳转、校验格式与大小（默认 50MB 内）
+
+可选环境变量：`FETCH_AUDIO_MAX_BYTES`（单位字节，默认 52428800）
+
+**代理配置**：在设置面板中可配置代理地址（如 `http://127.0.0.1:7890`），用于服务器端拉取外部音频。
+
 ## 🔗 联动食用
 
 <table>
@@ -120,11 +134,15 @@ docker compose up -d --build
 │   ├── api/
 │   │   ├── docs/route.ts     # API 文档端点
 │   │   ├── polish/route.ts   # LLM 润色 API
-│   │   └── transcribe/route.ts # 一站式转录 API
+│   │   ├── transcribe/route.ts # 一站式转录 API（文件上传）
+│   │   ├── fetch-audio/route.ts # 在线链接导入并转录
+│   │   └── download-audio/route.ts # 下载在线音频到本地
 │   ├── docs/page.tsx         # API 文档页面
 │   ├── globals.css           # 全局样式（Apple 设计系统）
 │   ├── layout.tsx            # 根布局
 │   └── page.tsx              # 主页面组件
+├── lib/
+│   └── url-utils.ts          # URL 解析/校验/扩展名 MIME 映射
 ├── docs/
 │   ├── api.md                # API 文档
 │   ├── testing.md            # 测试指南
@@ -154,9 +172,9 @@ docker compose up -d --build
 ```
 1️⃣ 点击设置图标，填入硅基流动 API Key
         ↓
-2️⃣ 选择音频文件或点击录音按钮
+2️⃣ 粘贴在线链接 或 选择本地音频文件
         ↓
-3️⃣ 点击「开始转录」等待识别完成
+3️⃣ 点击「直接转录」或「开始转录」
         ↓
 4️⃣ 查看原始结果，点击「润色」进行智能排版
         ↓
@@ -191,10 +209,18 @@ npm test
 cp .env.example .env
 # 编辑 .env 填入 ASR_API_KEY
 
-# 一站式转录（音频 → 文字 → 润色）
+# 一站式转录（本地文件）
 curl -X POST http://localhost:3000/api/transcribe \
   -F "file=@audio.mp3" \
   -F "polish=true"
+
+# 在线链接导入（asmrgay.com 或直链）
+curl -X POST http://localhost:3000/api/fetch-audio \
+  -H "Content-Type: application/json" \
+  -d '{
+    "url": "https://asmrgay.com/your-audio-link",
+    "polish": false
+  }'
 
 # 获取 API 文档
 curl http://localhost:3000/api/docs
