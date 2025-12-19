@@ -8,6 +8,7 @@ const DEFAULT_ASR_MODEL = 'TeleAI/TeleSpeechASR'
 const DEFAULT_LLM_API_URL = 'https://juya.owl.ci/v1'
 const DEFAULT_LLM_MODEL = 'DeepSeek-V3.1-Terminus'
 const DEFAULT_LLM_API_KEY = 'sk-kUm2RSHxuRJyjdrzdwprHYFYwvE4NTkIzRoyyaiDoh7YyDIZ'
+const DEFAULT_PROXY_URL = 'http://127.0.0.1:7890'
 // 默认润色指令（用户可自定义）
 const DEFAULT_INSTRUCTIONS =
   '请对以下语音转文字内容进行处理：1. 纠正错别字和语法错误 2. 添加适当的标点符号 3. 分段排版使内容更易读 4. 保持原意不变，不要添加或删除内容'
@@ -22,6 +23,7 @@ type Settings = {
   llmModel: string
   llmApiKey: string
   customInstructions: string
+  proxyUrl: string
 }
 
 type LogEntry = {
@@ -57,6 +59,7 @@ export default function Home() {
   const [llmModel, setLlmModel] = useState(DEFAULT_LLM_MODEL)
   const [llmApiKey, setLlmApiKey] = useState('')
   const [customInstructions, setCustomInstructions] = useState(DEFAULT_INSTRUCTIONS)
+  const [proxyUrl, setProxyUrl] = useState(DEFAULT_PROXY_URL)
   const [settingsLoaded, setSettingsLoaded] = useState(false)
 
   // Load settings from localStorage on mount
@@ -70,6 +73,7 @@ export default function Home() {
       setLlmModel(stored.llmModel || DEFAULT_LLM_MODEL)
       setLlmApiKey(stored.llmApiKey || '')
       setCustomInstructions(stored.customInstructions || DEFAULT_INSTRUCTIONS)
+      setProxyUrl(stored.proxyUrl ?? DEFAULT_PROXY_URL)
     }
     setSettingsLoaded(true)
   }, [])
@@ -77,19 +81,22 @@ export default function Home() {
   // Save settings to localStorage when they change
   useEffect(() => {
     if (!settingsLoaded) return
-    saveSettings({ apiKey, apiUrl, model, llmApiUrl, llmModel, llmApiKey, customInstructions })
-  }, [apiKey, apiUrl, model, llmApiUrl, llmModel, llmApiKey, customInstructions, settingsLoaded])
+    saveSettings({ apiKey, apiUrl, model, llmApiUrl, llmModel, llmApiKey, customInstructions, proxyUrl })
+  }, [apiKey, apiUrl, model, llmApiUrl, llmModel, llmApiKey, customInstructions, proxyUrl, settingsLoaded])
   const [result, setResult] = useState('')
   const [polishedResult, setPolishedResult] = useState('')
   const [loading, setLoading] = useState(false)
   const [polishing, setPolishing] = useState(false)
   const [recording, setRecording] = useState(false)
   const [uploadProgress, setUploadProgress] = useState(0)
-  const [status, setStatus] = useState<'idle' | 'uploading' | 'uploaded' | 'transcribing' | 'done' | 'error'>('idle')
+  const [status, setStatus] = useState<
+    'idle' | 'uploading' | 'uploaded' | 'fetching-url' | 'transcribing' | 'done' | 'error'
+  >('idle')
   const [statusMessage, setStatusMessage] = useState('')
   const [logs, setLogs] = useState<LogEntry[]>([])
   const [fileInfo, setFileInfo] = useState<{ name: string; size: string; type: string } | null>(null)
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
+  const [audioUrlInput, setAudioUrlInput] = useState('')
   const [copied, setCopied] = useState(false)
   const [copiedPolished, setCopiedPolished] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
@@ -310,6 +317,166 @@ export default function Home() {
     }
   }
 
+  const downloadToLocal = async () => {
+    const url = audioUrlInput.trim()
+    if (!url) {
+      addLog('请输入音频链接', 'error')
+      return
+    }
+
+    clearLogs()
+    setLoading(true)
+    setStatus('fetching-url')
+    setStatusMessage('正在下载音频到本地...')
+    setSelectedFile(null)
+    setFileInfo(null)
+
+    addLog(`开始下载: ${url}`, 'info')
+
+    try {
+      const res = await fetch('/api/download-audio', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url, proxyUrl: proxyUrl.trim() || undefined }),
+      })
+
+      const data = await res.json()
+      if (res.ok && data.success) {
+        setFileInfo({
+          name: data.fileName,
+          size: formatFileSize(data.fileSize),
+          type: data.contentType,
+        })
+        setStatus('idle')
+        setStatusMessage('')
+        addLog(`下载完成: ${data.fileName} (${formatFileSize(data.fileSize)})`, 'success')
+        addLog(`保存路径: ${data.filePath}`, 'info')
+      } else {
+        setStatus('error')
+        setStatusMessage('下载失败')
+        addLog(`下载失败: ${data.error}`, 'error')
+      }
+    } catch (e) {
+      setStatus('error')
+      setStatusMessage('下载失败')
+      addLog(`下载失败: ${(e as Error).message}`, 'error')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const importFromUrl = async () => {
+    const url = audioUrlInput.trim()
+    if (!url) {
+      addLog('请输入音频链接', 'error')
+      return
+    }
+
+    try {
+      const parsed = new URL(url)
+      if (!['http:', 'https:'].includes(parsed.protocol)) {
+        addLog('仅支持 http/https 链接', 'error')
+        return
+      }
+    } catch {
+      addLog('请输入有效的音频链接', 'error')
+      return
+    }
+
+    if (!apiKey) {
+      setResult('请先填写 API Key')
+      addLog('错误: 未填写 API Key', 'error')
+      return
+    }
+
+    clearLogs()
+    setLoading(true)
+    setResult('')
+    setPolishedResult('')
+    setUploadProgress(0)
+    setStatus('fetching-url')
+    setStatusMessage('正在从链接获取音频...')
+    setSelectedFile(null)
+    setFileInfo(null)
+
+    const effectiveApiUrl = apiUrl.trim() || DEFAULT_ASR_API_URL
+    const effectiveModel = model.trim() || DEFAULT_ASR_MODEL
+
+    addLog(`开始从链接导入音频: ${url}`, 'info')
+    addLog(`目标 API: ${effectiveApiUrl}`, 'info')
+    addLog(`使用模型: ${effectiveModel}`, 'info')
+
+    const transcribingTimer = setTimeout(() => {
+      setStatus((prev) => (prev === 'fetching-url' ? 'transcribing' : prev))
+      setStatusMessage('服务器正在进行语音识别...')
+      addLog('服务器正在进行语音识别...', 'info')
+    }, 800)
+
+    try {
+      const res = await fetch('/api/fetch-audio', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          url,
+          asrApiKey: apiKey,
+          asrApiUrl: effectiveApiUrl,
+          asrModel: effectiveModel,
+          polish: false,
+          proxyUrl: proxyUrl.trim() || undefined,
+        }),
+      })
+
+      clearTimeout(transcribingTimer)
+      let data: Record<string, any> = {}
+      try {
+        data = await res.json()
+      } catch {
+        data = {}
+      }
+
+      if (res.ok && data.success) {
+        const text = (data.transcription as string) || ''
+        setResult(text || '转录完成但无文本返回')
+        setStatus('done')
+        setStatusMessage('转录完成')
+
+        if (data.metadata) {
+          setFileInfo({
+            name: data.metadata.fileName || '在线音频',
+            size: formatFileSize(data.metadata.fileSize || 0),
+            type: data.metadata.contentType || 'audio',
+          })
+          addLog(
+            `音频拉取完成: ${data.metadata.fileName || '在线音频'} (${formatFileSize(
+              data.metadata.fileSize || 0
+            )})`,
+            'success'
+          )
+        } else {
+          addLog('音频拉取完成', 'success')
+        }
+
+        addLog(`转录成功! 文本长度: ${text.length} 字符`, 'success')
+      } else {
+        const errorMsg = data.error || '导入失败'
+        setResult(`错误: ${errorMsg}`)
+        setStatus('error')
+        setStatusMessage('导入失败')
+        addLog(`导入失败: ${errorMsg}`, 'error')
+      }
+    } catch (e) {
+      clearTimeout(transcribingTimer)
+      const errorMsg = e instanceof Error ? e.message : String(e)
+      setResult(`请求失败: ${errorMsg}`)
+      setStatus('error')
+      setStatusMessage('请求失败')
+      addLog(`请求失败: ${errorMsg}`, 'error')
+    } finally {
+      clearTimeout(transcribingTimer)
+      setLoading(false)
+    }
+  }
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (file) {
@@ -392,6 +559,7 @@ export default function Home() {
     idle: { text: '准备就绪', color: 'bg-[#8E8E93]', textColor: 'text-[#8E8E93]' },
     uploading: { text: '上传中', color: 'bg-[#007AFF]', textColor: 'text-[#007AFF]' },
     uploaded: { text: '已上传', color: 'bg-[#34C759]', textColor: 'text-[#34C759]' },
+    'fetching-url': { text: '拉取链接', color: 'bg-[#5E5CE6]', textColor: 'text-[#5E5CE6]' },
     transcribing: { text: '识别中', color: 'bg-[#FF9500]', textColor: 'text-[#FF9500]' },
     done: { text: '已完成', color: 'bg-[#34C759]', textColor: 'text-[#34C759]' },
     error: { text: '出错了', color: 'bg-[#FF3B30]', textColor: 'text-[#FF3B30]' },
@@ -549,6 +717,32 @@ export default function Home() {
                 </div>
               </div>
             </div>
+
+            {/* Proxy Config */}
+            <div className="bg-white rounded-2xl shadow-[var(--apple-shadow)] p-6 card-hover">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-8 h-8 rounded-lg bg-[#FF9500]/10 flex items-center justify-center">
+                  <svg className="w-4 h-4 text-[#FF9500]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" />
+                  </svg>
+                </div>
+                <div>
+                  <h2 className="font-semibold text-[#1D1D1F]">网络代理</h2>
+                  <p className="text-xs text-[#8E8E93]">Proxy Settings · 留空则直连</p>
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-[#636366] mb-2">代理地址</label>
+                <input
+                  type="text"
+                  placeholder="http://127.0.0.1:7890"
+                  value={proxyUrl}
+                  onChange={(e) => setProxyUrl(e.target.value)}
+                  className="w-full px-4 py-3 bg-[#F2F2F7] rounded-xl border-0 text-[#1D1D1F] placeholder-[#8E8E93] focus:ring-2 focus:ring-[#FF9500]/30 focus:bg-white transition-all"
+                />
+                <p className="mt-1 text-xs text-[#8E8E93]">用于服务器端拉取在线音频，留空表示直连（需开启 TUN 模式或无需代理）</p>
+              </div>
+            </div>
           </div>
         )}
 
@@ -592,6 +786,38 @@ export default function Home() {
                 </>
               )}
             </button>
+          </div>
+
+          {/* URL Import */}
+          <div className="space-y-2 mb-6">
+            <div className="flex items-center justify-between">
+              <label className="block text-sm font-medium text-[#636366]">在线音频链接</label>
+              <span className="text-xs text-[#8E8E93]">支持 asmrgay.com 及备用站 / 直链 .mp3/.wav 等</span>
+            </div>
+            <div className="flex flex-col gap-3 md:flex-row">
+              <input
+                type="text"
+                value={audioUrlInput}
+                onChange={(e) => setAudioUrlInput(e.target.value)}
+                placeholder="粘贴音频链接，例如 https://asmrgay.com/xxx 或 https://example.com/audio.mp3"
+                className="flex-1 px-4 py-3 bg-[#F2F2F7] rounded-xl border-0 text-sm text-[#1D1D1F] placeholder-[#8E8E93] focus:ring-2 focus:ring-[#5E5CE6]/30 focus:bg-white transition-all"
+              />
+              <button
+                onClick={downloadToLocal}
+                disabled={loading || !audioUrlInput.trim()}
+                className="md:w-32 w-full flex items-center justify-center gap-2 px-4 py-3 bg-[#FF9500] text-white rounded-xl font-medium hover:bg-[#E68600] disabled:opacity-40 disabled:cursor-not-allowed btn-press shadow-lg shadow-[#FF9500]/25"
+              >
+                {loading && status === 'fetching-url' ? '下载中...' : '下载到本地'}
+              </button>
+              <button
+                onClick={importFromUrl}
+                disabled={loading || !audioUrlInput.trim()}
+                className="md:w-32 w-full flex items-center justify-center gap-2 px-4 py-3 bg-[#5E5CE6] text-white rounded-xl font-medium hover:bg-[#4B49CC] disabled:opacity-40 disabled:cursor-not-allowed btn-press shadow-lg shadow-[#5E5CE6]/25"
+              >
+                {loading && status === 'transcribing' ? '转录中...' : '直接转录'}
+              </button>
+            </div>
+            <p className="text-xs text-[#8E8E93]">服务器侧拉取音频，自动跟随跳转并校验格式，适配 asmrgay.com 无扩展名链接。</p>
           </div>
 
           {/* Selected File Display */}
@@ -669,7 +895,7 @@ export default function Home() {
             )}
 
             {/* Indeterminate progress for server processing */}
-            {(status === 'uploaded' || status === 'transcribing') && (
+            {(status === 'uploaded' || status === 'transcribing' || status === 'fetching-url') && (
               <div className="relative w-full h-2 bg-[#F2F2F7] rounded-full overflow-hidden mb-3">
                 <div className="absolute inset-0 bg-gradient-to-r from-transparent via-[#FF9500] to-transparent animate-[progress-shine_1.5s_ease-in-out_infinite]" style={{ backgroundSize: '200% 100%' }}></div>
               </div>
@@ -678,7 +904,7 @@ export default function Home() {
             {/* Status message */}
             {statusMessage && (
               <p className="text-sm text-[#8E8E93] flex items-center gap-2">
-                {(status === 'uploading' || status === 'uploaded' || status === 'transcribing') && (
+                {(status === 'uploading' || status === 'uploaded' || status === 'transcribing' || status === 'fetching-url') && (
                   <svg className="animate-spin w-4 h-4 flex-shrink-0" viewBox="0 0 24 24">
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
