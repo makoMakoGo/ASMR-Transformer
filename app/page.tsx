@@ -87,7 +87,6 @@ export default function Home() {
   const [polishedResult, setPolishedResult] = useState('')
   const [loading, setLoading] = useState(false)
   const [polishing, setPolishing] = useState(false)
-  const [recording, setRecording] = useState(false)
   const [uploadProgress, setUploadProgress] = useState(0)
   const [status, setStatus] = useState<
     'idle' | 'uploading' | 'uploaded' | 'fetching-url' | 'transcribing' | 'done' | 'error'
@@ -101,8 +100,6 @@ export default function Home() {
   const [copiedPolished, setCopiedPolished] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null)
-  const chunksRef = useRef<Blob[]>([])
   const logsContainerRef = useRef<HTMLDivElement>(null)
 
   const addLog = (message: string, type: LogEntry['type'] = 'info') => {
@@ -493,46 +490,6 @@ export default function Home() {
     }
   }
 
-  const toggleRecording = async () => {
-    if (recording) {
-      mediaRecorderRef.current?.stop()
-      setRecording(false)
-      addLog('录音停止', 'info')
-    } else {
-      try {
-        addLog('请求麦克风权限...', 'info')
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-        addLog('麦克风权限已获取', 'success')
-
-        const mediaRecorder = new MediaRecorder(stream)
-        mediaRecorderRef.current = mediaRecorder
-        chunksRef.current = []
-
-        mediaRecorder.ondataavailable = (e) => {
-          chunksRef.current.push(e.data)
-        }
-
-        mediaRecorder.onstop = () => {
-          const blob = new Blob(chunksRef.current, { type: 'audio/webm' })
-          const file = new File([blob], 'recording.webm', { type: 'audio/webm' })
-          setSelectedFile(file)
-          const info = { name: file.name, size: formatFileSize(blob.size), type: 'audio/webm' }
-          setFileInfo(info)
-          addLog(`录音完成，总大小: ${info.size}`, 'success')
-          stream.getTracks().forEach((t) => t.stop())
-        }
-
-        mediaRecorder.start(1000)
-        setRecording(true)
-        addLog('开始录音...', 'success')
-      } catch (e) {
-        const errorMsg = e instanceof Error ? e.message : String(e)
-        setResult('无法访问麦克风')
-        addLog(`麦克风访问失败: ${errorMsg}`, 'error')
-      }
-    }
-  }
-
   const handleCopy = async () => {
     try {
       await navigator.clipboard.writeText(result)
@@ -749,75 +706,50 @@ export default function Home() {
 
         {/* Main Action Area */}
         <div className="bg-white rounded-2xl shadow-[var(--apple-shadow)] p-6 card-hover">
-          {/* Action Buttons */}
-          <div className="flex gap-4 mb-6">
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              disabled={loading}
-              className="flex-1 flex items-center justify-center gap-3 py-4 px-6 bg-[#007AFF] text-white rounded-xl font-medium hover:bg-[#0066CC] disabled:opacity-50 disabled:cursor-not-allowed btn-press shadow-lg shadow-[#007AFF]/25"
-            >
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-              </svg>
-              选择文件
-            </button>
-            <button
-              onClick={toggleRecording}
-              disabled={loading}
-              className={`flex-1 flex items-center justify-center gap-3 py-4 px-6 rounded-xl font-medium btn-press shadow-lg ${
-                recording
-                  ? 'bg-[#FF3B30] text-white hover:bg-[#E6352B] shadow-[#FF3B30]/25 animate-pulse-ring'
-                  : 'bg-[#34C759] text-white hover:bg-[#2DB84E] shadow-[#34C759]/25'
-              } disabled:opacity-50 disabled:cursor-not-allowed`}
-            >
-              {recording ? (
-                <>
-                  <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                    <rect x="6" y="6" width="12" height="12" rx="2" />
-                  </svg>
-                  停止录音
-                </>
-              ) : (
-                <>
-                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
-                  </svg>
-                  开始录音
-                </>
-              )}
-            </button>
-          </div>
-
-          {/* URL Import */}
-          <div className="space-y-2 mb-6">
+          {/* 在线链接 */}
+          <div className="space-y-3 mb-6">
             <div className="flex items-center justify-between">
-              <label className="block text-sm font-medium text-[#636366]">在线音频链接</label>
-              <span className="text-xs text-[#8E8E93]">支持 asmrgay.com 及备用站 / 直链 .mp3/.wav 等</span>
+              <label className="block text-sm font-medium text-[#636366]">在线链接</label>
+              <span className="text-xs text-[#8E8E93]">支持 asmrgay.com 及备用站</span>
             </div>
-            <div className="flex flex-col gap-3 md:flex-row">
-              <input
-                type="text"
-                value={audioUrlInput}
-                onChange={(e) => setAudioUrlInput(e.target.value)}
-                placeholder="粘贴音频链接，例如 https://asmrgay.com/xxx 或 https://example.com/audio.mp3"
-                className="flex-1 px-4 py-3 bg-[#F2F2F7] rounded-xl border-0 text-sm text-[#1D1D1F] placeholder-[#8E8E93] focus:ring-2 focus:ring-[#5E5CE6]/30 focus:bg-white transition-all"
-              />
+            <input
+              type="text"
+              value={audioUrlInput}
+              onChange={(e) => setAudioUrlInput(e.target.value)}
+              placeholder="粘贴音频链接..."
+              className="w-full px-4 py-3 bg-[#F2F2F7] rounded-xl border-0 text-sm text-[#1D1D1F] placeholder-[#8E8E93] focus:ring-2 focus:ring-[#5E5CE6]/30 focus:bg-white transition-all"
+            />
+            <div className="flex gap-3">
               <button
                 onClick={downloadToLocal}
                 disabled={loading || !audioUrlInput.trim()}
-                className="md:w-32 w-full flex items-center justify-center gap-2 px-4 py-3 bg-[#FF9500] text-white rounded-xl font-medium hover:bg-[#E68600] disabled:opacity-40 disabled:cursor-not-allowed btn-press shadow-lg shadow-[#FF9500]/25"
+                className="flex-1 flex items-center justify-center gap-2 py-3 px-4 bg-[#FF9500] text-white rounded-xl font-medium hover:bg-[#E68600] disabled:opacity-40 disabled:cursor-not-allowed btn-press shadow-lg shadow-[#FF9500]/25"
               >
                 {loading && status === 'fetching-url' ? '下载中...' : '下载到本地'}
               </button>
               <button
                 onClick={importFromUrl}
-                disabled={loading || !audioUrlInput.trim()}
-                className="md:w-32 w-full flex items-center justify-center gap-2 px-4 py-3 bg-[#5E5CE6] text-white rounded-xl font-medium hover:bg-[#4B49CC] disabled:opacity-40 disabled:cursor-not-allowed btn-press shadow-lg shadow-[#5E5CE6]/25"
+                disabled={loading || !audioUrlInput.trim() || !apiKey}
+                className="flex-1 flex items-center justify-center gap-2 py-3 px-4 bg-[#5E5CE6] text-white rounded-xl font-medium hover:bg-[#4B49CC] disabled:opacity-40 disabled:cursor-not-allowed btn-press shadow-lg shadow-[#5E5CE6]/25"
               >
                 {loading && status === 'transcribing' ? '转录中...' : '直接转录'}
               </button>
             </div>
-            <p className="text-xs text-[#8E8E93]">服务器侧拉取音频，自动跟随跳转并校验格式，适配 asmrgay.com 无扩展名链接。</p>
+          </div>
+
+          {/* 本地文件 */}
+          <div className="space-y-3 mb-6">
+            <label className="block text-sm font-medium text-[#636366]">本地文件</label>
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              disabled={loading}
+              className="w-full flex items-center justify-center gap-3 py-4 px-6 bg-[#007AFF] text-white rounded-xl font-medium hover:bg-[#0066CC] disabled:opacity-50 disabled:cursor-not-allowed btn-press shadow-lg shadow-[#007AFF]/25"
+            >
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+              </svg>
+              选择音频文件
+            </button>
           </div>
 
           {/* Selected File Display */}
