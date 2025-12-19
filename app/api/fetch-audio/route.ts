@@ -283,7 +283,7 @@ export async function POST(req: NextRequest): Promise<NextResponse<FetchAudioRes
     mimeFromUrl ||
     'application/octet-stream'
 
-  const audioBlob = new Blob([audioBuffer], { type: mimeType })
+  const audioBlob = new Blob([new Uint8Array(audioBuffer)], { type: mimeType })
 
   const asrForm = new FormData()
   asrForm.append('file', audioBlob, fileName)

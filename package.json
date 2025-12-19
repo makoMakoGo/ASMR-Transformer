@@ -14,12 +14,18 @@
     "prepare": "node -e \"try{require('child_process').execSync('sh scripts/setup-hooks.sh',{stdio:'inherit'})}catch(e){}\""
   },
   "dependencies": {
+    "@radix-ui/react-slot": "^1.2.4",
     "@uiw/react-markdown-preview": "^5.1.5",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "lucide-react": "^0.562.0",
     "next": "^15.1.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-markdown": "^10.1.0",
     "remark-gfm": "^4.0.1",
+    "tailwind-merge": "^3.4.0",
+    "tailwindcss-animate": "^1.0.7",
     "undici": "^7.16.0"
   },
   "devDependencies": {

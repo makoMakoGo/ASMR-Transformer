@@ -1,6 +1,9 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 
 // 默认配置
 const DEFAULT_ASR_API_URL = 'https://api.siliconflow.cn/v1/audio/transcriptions'
@@ -705,103 +708,100 @@ export default function Home() {
 
 
         {/* Main Action Area */}
-        <div className="bg-white rounded-2xl shadow-[var(--apple-shadow)] p-6 card-hover">
-          {/* 在线链接 */}
-          <div className="space-y-3 mb-6">
-            <div className="flex items-center justify-between">
-              <label className="block text-sm font-medium text-[#636366]">在线链接</label>
-              <span className="text-xs text-[#8E8E93]">支持 asmrgay.com 及备用站</span>
-            </div>
-            <input
-              type="text"
-              value={audioUrlInput}
-              onChange={(e) => setAudioUrlInput(e.target.value)}
-              placeholder="粘贴音频链接..."
-              className="w-full px-4 py-3 bg-[#F2F2F7] rounded-xl border-0 text-sm text-[#1D1D1F] placeholder-[#8E8E93] focus:ring-2 focus:ring-[#5E5CE6]/30 focus:bg-white transition-all"
-            />
-            <div className="flex gap-3">
-              <button
-                onClick={downloadToLocal}
-                disabled={loading || !audioUrlInput.trim()}
-                className="flex-1 flex items-center justify-center gap-2 py-3 px-4 bg-[#FF9500] text-white rounded-xl font-medium hover:bg-[#E68600] disabled:opacity-40 disabled:cursor-not-allowed btn-press shadow-lg shadow-[#FF9500]/25"
-              >
-                {loading && status === 'fetching-url' ? '下载中...' : '下载到本地'}
-              </button>
-              <button
-                onClick={importFromUrl}
-                disabled={loading || !audioUrlInput.trim() || !apiKey}
-                className="flex-1 flex items-center justify-center gap-2 py-3 px-4 bg-[#5E5CE6] text-white rounded-xl font-medium hover:bg-[#4B49CC] disabled:opacity-40 disabled:cursor-not-allowed btn-press shadow-lg shadow-[#5E5CE6]/25"
-              >
-                {loading && status === 'transcribing' ? '转录中...' : '直接转录'}
-              </button>
-            </div>
-          </div>
-
-          {/* 本地文件 */}
-          <div className="space-y-3 mb-6">
-            <label className="block text-sm font-medium text-[#636366]">本地文件</label>
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              disabled={loading}
-              className="w-full flex items-center justify-center gap-3 py-4 px-6 bg-[#007AFF] text-white rounded-xl font-medium hover:bg-[#0066CC] disabled:opacity-50 disabled:cursor-not-allowed btn-press shadow-lg shadow-[#007AFF]/25"
-            >
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-              </svg>
-              选择音频文件
-            </button>
-          </div>
-
-          {/* Selected File Display */}
-          {fileInfo && !loading && (
-            <div className="flex items-center justify-between p-4 bg-[#F2F2F7] rounded-xl mb-6 animate-fade-in">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg bg-[#007AFF]/10 flex items-center justify-center">
-                  <svg className="w-5 h-5 text-[#007AFF]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" />
-                  </svg>
-                </div>
-                <div>
-                  <p className="font-medium text-[#1D1D1F]">{fileInfo.name}</p>
-                  <p className="text-sm text-[#8E8E93]">{fileInfo.size}</p>
-                </div>
+        <Card className="shadow-[var(--apple-shadow)] border-0 rounded-2xl">
+          <CardHeader className="pb-4">
+            <CardTitle className="text-lg text-[#1D1D1F]">音频来源</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            {/* 在线链接 */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <label className="text-sm font-medium text-[#636366]">在线链接</label>
+                <span className="text-xs text-[#8E8E93]">支持 asmrgay.com 及备用站</span>
               </div>
-              <button
-                onClick={() => {
-                  setSelectedFile(null)
-                  setFileInfo(null)
-                  if (fileInputRef.current) fileInputRef.current.value = ''
-                }}
-                className="w-8 h-8 rounded-full bg-[#8E8E93]/10 hover:bg-[#FF3B30]/10 flex items-center justify-center group"
-              >
-                <svg className="w-4 h-4 text-[#8E8E93] group-hover:text-[#FF3B30]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
+              <Input
+                type="text"
+                value={audioUrlInput}
+                onChange={(e) => setAudioUrlInput(e.target.value)}
+                placeholder="粘贴音频链接..."
+                className="h-12 px-4 bg-[#F2F2F7] border-0 rounded-xl text-[#1D1D1F] placeholder:text-[#8E8E93] focus-visible:ring-2 focus-visible:ring-[#5E5CE6]/30"
+              />
+              <div className="flex gap-3">
+                <Button
+                  onClick={downloadToLocal}
+                  disabled={loading || !audioUrlInput.trim()}
+                  className="flex-1 h-12 bg-[#FF9500] hover:bg-[#E68600] text-white rounded-xl font-medium shadow-lg shadow-[#FF9500]/25 disabled:opacity-40"
+                >
+                  {loading && status === 'fetching-url' ? '下载中...' : '下载到本地'}
+                </Button>
+                <Button
+                  onClick={importFromUrl}
+                  disabled={loading || !audioUrlInput.trim() || !apiKey}
+                  className="flex-1 h-12 bg-[#5E5CE6] hover:bg-[#4B49CC] text-white rounded-xl font-medium shadow-lg shadow-[#5E5CE6]/25 disabled:opacity-40"
+                >
+                  {loading && status === 'transcribing' ? '转录中...' : '直接转录'}
+                </Button>
+              </div>
             </div>
-          )}
 
-          {/* Start Transcribe Button */}
-          <button
-            onClick={handleStartTranscribe}
-            disabled={loading || !selectedFile}
-            className="w-full py-4 bg-gradient-to-r from-[#AF52DE] to-[#007AFF] text-white rounded-xl font-semibold hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed btn-press shadow-lg shadow-[#AF52DE]/20"
-          >
-            {loading ? (
-              <span className="flex items-center justify-center gap-2">
-                <svg className="animate-spin w-5 h-5" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+            {/* 本地文件 */}
+            <div className="space-y-3">
+              <label className="text-sm font-medium text-[#636366]">本地文件</label>
+              <Button
+                onClick={() => fileInputRef.current?.click()}
+                disabled={loading}
+                className="w-full h-14 bg-[#007AFF] hover:bg-[#0066CC] text-white rounded-xl font-medium shadow-lg shadow-[#007AFF]/25 disabled:opacity-50"
+              >
+                <svg className="w-5 h-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
                 </svg>
-                处理中...
-              </span>
-            ) : (
-              '开始转录'
-            )}
-          </button>
+                选择音频文件
+              </Button>
+            </div>
 
-          <input ref={fileInputRef} type="file" accept="audio/*" onChange={handleFileChange} className="hidden" />
-        </div>
+            {/* Selected File Display */}
+            {fileInfo && !loading && (
+              <div className="flex items-center justify-between p-4 bg-[#F2F2F7] rounded-xl animate-fade-in">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-lg bg-[#007AFF]/10 flex items-center justify-center">
+                    <svg className="w-5 h-5 text-[#007AFF]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" />
+                    </svg>
+                  </div>
+                  <div>
+                    <p className="font-medium text-[#1D1D1F]">{fileInfo.name}</p>
+                    <p className="text-sm text-[#8E8E93]">{fileInfo.size}</p>
+                  </div>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="w-8 h-8 rounded-full hover:bg-[#FF3B30]/10"
+                  onClick={() => {
+                    setSelectedFile(null)
+                    setFileInfo(null)
+                    if (fileInputRef.current) fileInputRef.current.value = ''
+                  }}
+                >
+                  <svg className="w-4 h-4 text-[#8E8E93] hover:text-[#FF3B30]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </Button>
+              </div>
+            )}
+
+            {/* Start Transcribe Button */}
+            <Button
+              onClick={handleStartTranscribe}
+              disabled={loading || !selectedFile}
+              className="w-full h-14 bg-gradient-to-r from-[#AF52DE] to-[#007AFF] hover:opacity-90 text-white rounded-xl font-semibold shadow-lg shadow-[#AF52DE]/20 disabled:opacity-40"
+            >
+              {loading ? '处理中...' : '开始转录'}
+            </Button>
+
+            <input ref={fileInputRef} type="file" accept="audio/*" onChange={handleFileChange} className="hidden" />
+          </CardContent>
+        </Card>
 
         {/* Status & Progress */}
         {(status !== 'idle' || loading) && (
