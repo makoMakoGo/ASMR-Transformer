@@ -724,7 +724,7 @@ export default function Home() {
                 value={audioUrlInput}
                 onChange={(e) => setAudioUrlInput(e.target.value)}
                 placeholder="粘贴音频链接..."
-                className="h-12 px-4 bg-[#F2F2F7] border-0 rounded-xl text-[#1D1D1F] placeholder:text-[#8E8E93] focus-visible:ring-2 focus-visible:ring-[#5E5CE6]/30"
+                className="h-12 px-4 bg-[#F2F2F7] border border-[#E5E5EA] rounded-xl text-[#1D1D1F] placeholder:text-[#8E8E93] focus-visible:ring-2 focus-visible:ring-[#5E5CE6]/30 focus-visible:border-[#5E5CE6]"
               />
               <div className="flex gap-3">
                 <Button
