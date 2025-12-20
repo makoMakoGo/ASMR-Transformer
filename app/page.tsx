@@ -3,7 +3,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 
 // 默认配置
 const DEFAULT_ASR_API_URL = 'https://api.siliconflow.cn/v1/audio/transcriptions'
@@ -708,11 +707,16 @@ export default function Home() {
 
 
         {/* Main Action Area */}
-        <Card className="shadow-[var(--apple-shadow)] border-0 rounded-2xl">
-          <CardHeader className="pb-4">
-            <CardTitle className="text-lg text-[#1D1D1F]">音频来源</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-6">
+        <div className="bg-white rounded-2xl shadow-[var(--apple-shadow)] p-6">
+          <div className="flex items-center gap-2 mb-6">
+            <div className="w-8 h-8 rounded-lg bg-[#5E5CE6]/10 flex items-center justify-center">
+              <svg className="w-4 h-4 text-[#5E5CE6]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" />
+              </svg>
+            </div>
+            <h2 className="font-semibold text-[#1D1D1F]">音频来源</h2>
+          </div>
+          <div className="space-y-6">
             {/* 在线链接 */}
             <div className="space-y-3">
               <div className="flex items-center justify-between">
@@ -750,9 +754,9 @@ export default function Home() {
               <Button
                 onClick={() => fileInputRef.current?.click()}
                 disabled={loading}
-                className="w-full h-14 bg-[#007AFF] hover:bg-[#0066CC] text-white rounded-xl font-medium shadow-lg shadow-[#007AFF]/25 disabled:opacity-50"
+                className="w-full h-12 bg-[#007AFF] hover:bg-[#0066CC] text-white rounded-xl font-medium shadow-lg shadow-[#007AFF]/25 disabled:opacity-50 flex items-center justify-center gap-2"
               >
-                <svg className="w-5 h-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg className="w-5 h-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
                 </svg>
                 选择音频文件
@@ -794,14 +798,14 @@ export default function Home() {
             <Button
               onClick={handleStartTranscribe}
               disabled={loading || !selectedFile}
-              className="w-full h-14 bg-gradient-to-r from-[#AF52DE] to-[#007AFF] hover:opacity-90 text-white rounded-xl font-semibold shadow-lg shadow-[#AF52DE]/20 disabled:opacity-40"
+              className="w-full h-12 bg-gradient-to-r from-[#AF52DE] to-[#007AFF] hover:opacity-90 text-white rounded-xl font-medium shadow-lg shadow-[#AF52DE]/20 disabled:opacity-40"
             >
               {loading ? '处理中...' : '开始转录'}
             </Button>
 
             <input ref={fileInputRef} type="file" accept="audio/*" onChange={handleFileChange} className="hidden" />
-          </CardContent>
-        </Card>
+          </div>
+        </div>
 
         {/* Status & Progress */}
         {(status !== 'idle' || loading) && (

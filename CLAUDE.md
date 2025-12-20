@@ -4,9 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-语音转文字工具 - 一款基于 Next.js 15 的 Web 应用，提供音频文件上传/实时录音、ASR 语音识别、LLM 文本润色功能。采用 Apple 风格设计，支持设置持久化。
+语音转文字工具 - 一款基于 Next.js 16 的 Web 应用，提供音频文件上传、ASR 语音识别、LLM 文本润色功能。采用 Apple 风格设计，支持设置持久化。
 
-**Tech Stack**: Next.js 15 (App Router) + TypeScript 5.7 + React 19 + Tailwind CSS 3.4
+**Tech Stack**: Next.js 16 (App Router) + TypeScript 5.7 + React 19 + Tailwind CSS 3.4
 
 **External APIs**:
 - **SiliconFlow ASR**: 语音转文字（TeleAI/TeleSpeechASR 模型，可在硅基流动中文官网免费申请 Key）

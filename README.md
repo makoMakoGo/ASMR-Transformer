@@ -161,7 +161,7 @@ docker compose up -d --build
 
 | 技术 | 版本 |
 |------|------|
-| Next.js | 15 (App Router) |
+| Next.js | 16 (App Router) |
 | TypeScript | 5.7 |
 | React | 19 |
 | Tailwind CSS | 3.4 |
