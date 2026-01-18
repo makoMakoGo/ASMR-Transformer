@@ -17,9 +17,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ```bash
 # Development
 npm install          # Install dependencies
-npm run dev          # Start dev server (http://localhost:3000)
+npm run dev          # Start dev server (http://localhost:3045, bind 127.0.0.1)
 npm run build        # Production build (also type checks)
-npm start            # Start production server
+npm start            # Start production server (http://localhost:3045, bind 127.0.0.1)
 
 # Docker Deployment
 docker compose up -d --build    # Build and run in detached mode
@@ -30,7 +30,9 @@ docker compose up -d --build    # Build and run in detached mode
 ### App Structure
 ```
 app/
-├── api/polish/route.ts    # LLM 文本润色 API endpoint（支持自定义 system/user prompt）
+├── api/polish/route.ts        # LLM 文本润色（SSE 流式）
+├── api/fetch-audio/route.ts   # 在线链接导入并转录（服务端拉取音频）
+├── api/download-audio/route.ts # 下载在线音频到本地（写入 ./audio）
 ├── globals.css            # Apple 风格设计系统（CSS 变量、动画、毛玻璃效果）
 ├── layout.tsx             # Root layout with metadata
 └── page.tsx               # Main UI (完整的音频转录工作流)
@@ -39,18 +41,17 @@ app/
 ### Key Components
 
 **app/page.tsx** - Client component with complete audio transcription workflow:
-- File upload via `<input type="file">` and microphone recording via MediaRecorder API
-- XMLHttpRequest for upload progress tracking with granular status updates
-- ASR transcription via SiliconFlow API
-- LLM-based text polishing via `/api/polish` with customizable prompts
+- File upload via `<input type="file">` + 在线链接导入（asmrgay.com/备用站/直链）
+- XMLHttpRequest for upload progress tracking (本地文件直传 ASR)
+- ASR transcription via SiliconFlow API（本地文件：浏览器直连；在线链接：服务端拉取后转发）
+- LLM-based text polishing via `/api/polish`（SSE 流式增量展示）
 - Real-time logging system with timestamps and color-coded messages
 - Settings persistence via localStorage
 - Copy to clipboard functionality
 
 **app/api/polish/route.ts** - Server-side API route:
 - Proxies requests to LLM API (OpenAI-compatible chat completion)
-- Accepts custom `systemPrompt` and `userPrompt` parameters
-- Default system prompt: 纠错、标点、分段排版，保持原意
+- Accepts `customInstructions` for user-side instructions
 - Temperature: 0.3 for consistent output
 
 **app/globals.css** - Apple Design System:
@@ -70,8 +71,8 @@ type Settings = {
   llmApiUrl: string     // LLM API URL
   llmModel: string      // LLM Model
   llmApiKey: string     // LLM API Key
-  systemPrompt: string  // Custom system prompt
-  userPrompt: string    // Custom user prompt (use {text} placeholder)
+  customInstructions: string // 自定义润色指令
+  proxyUrl: string      // 服务端拉取在线音频用代理（可选）
 }
 ```
 

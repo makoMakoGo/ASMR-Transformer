@@ -337,19 +337,3 @@ export async function POST(req: NextRequest): Promise<NextResponse<FetchAudioRes
     },
   })
 }
-
-export async function GET(): Promise<NextResponse> {
-  return NextResponse.json({
-    name: 'Fetch Audio API',
-    version: '1.0.0',
-    description: '从远程 URL 获取音频并转录，支持可选文本润色',
-    endpoints: {
-      'POST /api/fetch-audio': '从 URL 下载音频并调用 ASR 转录，可选润色',
-      'GET /api/fetch-audio': '获取接口信息',
-    },
-    limits: {
-      maxFileSize: '50MB',
-      timeout: '60s',
-    },
-  })
-}

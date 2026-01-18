@@ -57,7 +57,7 @@ npm run dev
 npm run dev -- -p 3092
 ```
 
-打开浏览器访问 http://localhost:3000 (或自定义端口)
+打开浏览器访问 http://localhost:3045 (或自定义端口)
 
 ### 方式二：Docker 部署（推荐生产环境）
 
@@ -65,7 +65,7 @@ npm run dev -- -p 3092
 docker compose up -d --build
 ```
 
-访问 http://your-server:3000
+默认仅绑定本机端口（`127.0.0.1:3045:3000`），访问 http://localhost:3045
 
 ## 🔧 配置说明
 
@@ -132,26 +132,18 @@ docker compose up -d --build
 ```
 ├── app/
 │   ├── api/
-│   │   ├── docs/route.ts     # API 文档端点
-│   │   ├── polish/route.ts   # LLM 润色 API
-│   │   ├── transcribe/route.ts # 一站式转录 API（文件上传）
+│   │   ├── polish/route.ts   # LLM 润色（SSE 流式）
 │   │   ├── fetch-audio/route.ts # 在线链接导入并转录
 │   │   └── download-audio/route.ts # 下载在线音频到本地
-│   ├── docs/page.tsx         # API 文档页面
 │   ├── globals.css           # 全局样式（Apple 设计系统）
 │   ├── layout.tsx            # 根布局
 │   └── page.tsx              # 主页面组件
 ├── lib/
 │   └── url-utils.ts          # URL 解析/校验/扩展名 MIME 映射
-├── docs/
-│   ├── api.md                # API 文档
-│   ├── testing.md            # 测试指南
-│   └── images/               # 图片资源
+├── docs/images/              # 图片资源
 ├── tests/                    # 测试文件
-│   ├── setup.ts              # 测试配置
-│   ├── api/                  # API 测试
+│   ├── fixtures/             # 测试资源
 │   └── unit/                 # 单元测试
-├── for-test/                 # 测试资源
 ├── Dockerfile                # Docker 构建配置
 ├── docker-compose.yml        # Docker Compose 配置
 └── package.json
@@ -184,49 +176,14 @@ docker compose up -d --build
 ## 🧪 测试
 
 ```bash
-# 配置环境变量
-cp .env.example .env.local
-# 编辑 .env.local 填入 ASR_API_KEY
-
 # 运行单元测试
 npm run test:unit
-
-# 运行 API 测试（需先启动 npm run dev）
-npm run test:api
 
 # 运行所有测试
 npm test
 ```
 
-详见 [测试指南](docs/testing.md)
-
-## 🔌 API 接口
-
-服务启动后可通过 API 调用。配置 `.env` 后无需在命令中传递 API Key：
-
-```bash
-# 配置环境变量（首次使用）
-cp .env.example .env
-# 编辑 .env 填入 ASR_API_KEY
-
-# 一站式转录（本地文件）
-curl -X POST http://localhost:3000/api/transcribe \
-  -F "file=@audio.mp3" \
-  -F "polish=true"
-
-# 在线链接导入（asmrgay.com 或直链）
-curl -X POST http://localhost:3000/api/fetch-audio \
-  -H "Content-Type: application/json" \
-  -d '{
-    "url": "https://asmrgay.com/your-audio-link",
-    "polish": false
-  }'
-
-# 获取 API 文档
-curl http://localhost:3000/api/docs
-```
-
-详见 [API 文档](docs/api.md) 或访问 http://localhost:3000/docs
+本项目以 Web 界面为主，接口路由仅用于页面内部功能（在线链接导入、润色等），不再提供对外 API 文档。
 
 ## 🤝 贡献
 
