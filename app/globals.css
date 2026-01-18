@@ -2,40 +2,78 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Apple-style Design System */
+/* Apple-style Design System - Refined */
 :root {
+  /* Primary Colors - iOS 17 palette */
   --apple-blue: #007AFF;
-  --apple-green: #34C759;
-  --apple-orange: #FF9500;
-  --apple-red: #FF3B30;
-  --apple-purple: #AF52DE;
-  --apple-gray: #8E8E93;
-  --apple-gray-2: #636366;
+  --apple-blue-hover: #0066D6;
+  --apple-blue-light: rgba(0, 122, 255, 0.12);
+  --apple-green: #30D158;
+  --apple-green-light: rgba(48, 209, 88, 0.12);
+  --apple-orange: #FF9F0A;
+  --apple-orange-hover: #E68A00;
+  --apple-orange-light: rgba(255, 159, 10, 0.12);
+  --apple-red: #FF453A;
+  --apple-red-light: rgba(255, 69, 58, 0.12);
+  --apple-purple: #BF5AF2;
+  --apple-indigo: #5E5CE6;
+  --apple-indigo-hover: #4B4ACF;
+  --apple-indigo-light: rgba(94, 92, 230, 0.12);
+
+  /* Gray Scale - Refined */
+  --apple-gray: #86868B;
+  --apple-gray-2: #6E6E73;
   --apple-gray-3: #48484A;
   --apple-gray-4: #3A3A3C;
   --apple-gray-5: #2C2C2E;
-  --apple-gray-6: #1C1C1E;
-  --apple-bg: #F2F2F7;
+  --apple-gray-6: #1D1D1F;
+
+  /* Backgrounds */
+  --apple-bg: #F5F5F7;
+  --apple-bg-secondary: #FFFFFF;
+  --apple-bg-tertiary: rgba(118, 118, 128, 0.08);
   --apple-card: #FFFFFF;
-  --apple-border: rgba(0, 0, 0, 0.04);
-  --apple-shadow: 0 2px 8px rgba(0, 0, 0, 0.04), 0 4px 24px rgba(0, 0, 0, 0.08);
-  --apple-shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.04);
+
+  /* Borders & Separators */
+  --apple-border: rgba(0, 0, 0, 0.06);
+  --apple-separator: rgba(60, 60, 67, 0.12);
+
+  /* Shadows - Multi-layer for depth */
+  --apple-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
+  --apple-shadow: 0 2px 8px rgba(0, 0, 0, 0.04), 0 4px 24px rgba(0, 0, 0, 0.04);
+  --apple-shadow-lg: 0 4px 12px rgba(0, 0, 0, 0.06), 0 8px 32px rgba(0, 0, 0, 0.06);
+  --apple-shadow-button: 0 2px 8px rgba(0, 122, 255, 0.24);
+
+  /* Spacing */
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 16px;
+  --space-lg: 24px;
+  --space-xl: 32px;
+
+  /* Border Radius */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 20px;
 }
 
 /* SF Pro-like font stack */
 body {
-  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text',
     'Helvetica Neue', 'Segoe UI', Roboto, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   background: var(--apple-bg);
-  color: #1D1D1F;
+  color: var(--apple-gray-6);
+  letter-spacing: -0.01em;
+  line-height: 1.5;
 }
 
 /* Apple-style scrollbar */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
 }
 
 ::-webkit-scrollbar-track {
@@ -43,29 +81,59 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(0, 0, 0, 0.2);
-  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.15);
+  border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(0, 0, 0, 0.3);
+  background: rgba(0, 0, 0, 0.25);
 }
 
-/* Smooth transitions */
-* {
+/* Smooth transitions - Apple's spring-like curve */
+*, *::before, *::after {
   transition-property: background-color, border-color, color, fill, stroke, opacity, box-shadow, transform;
-  transition-duration: 200ms;
-  transition-timing-function: cubic-bezier(0.25, 0.1, 0.25, 1);
+  transition-duration: 180ms;
+  transition-timing-function: cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+/* Ensure gap utilities work correctly */
+.gap-5 {
+  gap: 1.25rem !important;
+}
+.gap-4 {
+  gap: 1rem !important;
+}
+.gap-3 {
+  gap: 0.75rem !important;
+}
+.gap-2 {
+  gap: 0.5rem !important;
+}
+.space-y-5 > :not([hidden]) ~ :not([hidden]) {
+  --tw-space-y-reverse: 0;
+  margin-top: calc(1.25rem * calc(1 - var(--tw-space-y-reverse)));
+  margin-bottom: calc(1.25rem * var(--tw-space-y-reverse));
+}
+.space-y-4 > :not([hidden]) ~ :not([hidden]) {
+  --tw-space-y-reverse: 0;
+  margin-top: calc(1rem * calc(1 - var(--tw-space-y-reverse)));
+  margin-bottom: calc(1rem * var(--tw-space-y-reverse));
 }
 
 /* Apple-style input focus */
-input:focus, textarea:focus, button:focus {
+input:focus, textarea:focus, button:focus-visible {
   outline: none;
+  box-shadow: 0 0 0 4px var(--apple-blue-light);
 }
 
-/* Glass morphism effect */
+button:focus:not(:focus-visible) {
+  outline: none;
+  box-shadow: none;
+}
+
+/* Glass morphism effect - Enhanced */
 .glass {
-  background: rgba(255, 255, 255, 0.72);
+  background: rgba(255, 255, 255, 0.78);
   backdrop-filter: saturate(180%) blur(20px);
   -webkit-backdrop-filter: saturate(180%) blur(20px);
 }
@@ -98,20 +166,25 @@ input:focus, textarea:focus, button:focus {
   background-clip: text;
 }
 
-/* Card hover effect */
+/* Card hover effect - Subtle */
 .card-hover {
-  transition: transform 0.3s cubic-bezier(0.25, 0.1, 0.25, 1), 
-              box-shadow 0.3s cubic-bezier(0.25, 0.1, 0.25, 1);
+  transition: transform 0.24s cubic-bezier(0.25, 0.46, 0.45, 0.94),
+              box-shadow 0.24s cubic-bezier(0.25, 0.46, 0.45, 0.94);
 }
 
 .card-hover:hover {
-  transform: translateY(-2px);
+  transform: translateY(-1px);
   box-shadow: var(--apple-shadow-lg);
 }
 
-/* Button press effect */
+/* Button press effect - Refined */
+.btn-press {
+  transition: transform 0.1s ease-out, opacity 0.1s ease-out;
+}
+
 .btn-press:active {
-  transform: scale(0.98);
+  transform: scale(0.97);
+  opacity: 0.9;
 }
 
 /* Progress bar animation */
