@@ -85,10 +85,17 @@ export default function Home() {
     if (!settingsLoaded) return
     saveSettings({ apiKey, apiUrl, model, llmApiUrl, llmModel, llmApiKey, customInstructions, proxyUrl })
   }, [apiKey, apiUrl, model, llmApiUrl, llmModel, llmApiKey, customInstructions, proxyUrl, settingsLoaded])
+
   const [result, setResult] = useState('')
   const [polishedResult, setPolishedResult] = useState('')
+  const [activeTab, setActiveTab] = useState<'original' | 'polished'>('original')
   const [loading, setLoading] = useState(false)
   const [polishing, setPolishing] = useState(false)
+
+  useEffect(() => {
+    if (polishedResult && !polishing) setActiveTab('polished')
+  }, [polishedResult, polishing])
+
   const [uploadProgress, setUploadProgress] = useState(0)
   const [status, setStatus] = useState<
     'idle' | 'uploading' | 'uploaded' | 'fetching-url' | 'transcribing' | 'done' | 'error'
@@ -96,6 +103,23 @@ export default function Home() {
   const [statusMessage, setStatusMessage] = useState('')
   const [logs, setLogs] = useState<LogEntry[]>([])
   const [fileInfo, setFileInfo] = useState<{ name: string; size: string; type: string } | null>(null)
+  const [theme, setTheme] = useState<'light' | 'dark'>('light')
+
+  // 初始化主题
+  useEffect(() => {
+    const stored = localStorage.getItem('theme') as 'light' | 'dark' | null
+    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
+    const initial = stored || (prefersDark ? 'dark' : 'light')
+    setTheme(initial)
+    document.documentElement.classList.toggle('dark', initial === 'dark')
+  }, [])
+
+  const toggleTheme = () => {
+    const next = theme === 'light' ? 'dark' : 'light'
+    setTheme(next)
+    localStorage.setItem('theme', next)
+    document.documentElement.classList.toggle('dark', next === 'dark')
+  }
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [audioUrlInput, setAudioUrlInput] = useState('')
   const [copied, setCopied] = useState(false)
@@ -226,6 +250,7 @@ export default function Home() {
 
     clearLogs()
     setLoading(true)
+    setActiveTab('original')
     setResult('')
     setPolishedResult('')
     setUploadProgress(0)
@@ -390,6 +415,7 @@ export default function Home() {
 
     clearLogs()
     setLoading(true)
+    setActiveTab('original')
     setResult('')
     setPolishedResult('')
     setUploadProgress(0)
@@ -515,96 +541,99 @@ export default function Home() {
   }
 
   const statusConfig = {
-    idle: { text: '准备就绪', color: 'bg-[#86868B]', textColor: 'text-[#86868B]' },
-    uploading: { text: '上传中', color: 'bg-[#007AFF]', textColor: 'text-[#007AFF]' },
-    uploaded: { text: '已上传', color: 'bg-[#30D158]', textColor: 'text-[#30D158]' },
-    'fetching-url': { text: '拉取链接', color: 'bg-[#5E5CE6]', textColor: 'text-[#5E5CE6]' },
-    transcribing: { text: '识别中', color: 'bg-[#FF9F0A]', textColor: 'text-[#FF9F0A]' },
-    done: { text: '已完成', color: 'bg-[#30D158]', textColor: 'text-[#30D158]' },
-    error: { text: '出错了', color: 'bg-[#FF453A]', textColor: 'text-[#FF453A]' },
+    idle: { text: '准备就绪', color: 'bg-muted-foreground', textColor: 'text-muted-foreground' },
+    uploading: { text: '上传中', color: 'bg-primary', textColor: 'text-primary' },
+    uploaded: { text: '已上传', color: 'bg-emerald-500', textColor: 'text-emerald-600 dark:text-emerald-400' },
+    'fetching-url': { text: '拉取链接', color: 'bg-primary', textColor: 'text-primary' },
+    transcribing: { text: '识别中', color: 'bg-amber-500', textColor: 'text-amber-600 dark:text-amber-400' },
+    done: { text: '已完成', color: 'bg-emerald-500', textColor: 'text-emerald-600 dark:text-emerald-400' },
+    error: { text: '出错了', color: 'bg-destructive', textColor: 'text-destructive' },
   }
 
   const logColors = {
-    info: 'text-[#86868B]',
-    success: 'text-[#30D158]',
-    error: 'text-[#FF453A]',
-    warning: 'text-[#FF9F0A]',
+    info: 'text-muted-foreground',
+    success: 'text-emerald-600 dark:text-emerald-400',
+    error: 'text-destructive',
+    warning: 'text-amber-600 dark:text-amber-400',
   }
 
 
   return (
-    <main className="min-h-screen bg-[#F5F5F7]">
+    <main className="min-h-screen bg-background">
       {/* Header */}
-      <header className="glass sticky top-0 z-50 border-b border-black/[0.06]">
-        <div className="max-w-3xl mx-auto px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-[12px] bg-gradient-to-b from-[#007AFF] to-[#0066D6] flex items-center justify-center shadow-[0_2px_8px_rgba(0,122,255,0.3)]">
-              <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
-              </svg>
-            </div>
-            <div>
-              <h1 className="text-[17px] font-semibold text-[#1D1D1F] tracking-[-0.02em]">语音转文字</h1>
-              <p className="text-[11px] text-[#86868B] tracking-wide">Voice to Text</p>
-            </div>
+      <header className="sticky top-0 z-50 border-b border-border bg-background/95">
+        <div className="max-w-2xl mx-auto px-6 py-4 flex items-center justify-between">
+          <div>
+            <h1 className="text-base font-semibold text-foreground">ASMR Transformer</h1>
+            <p className="text-xs text-muted-foreground">语音转文字</p>
           </div>
-          <button
-            onClick={() => setShowSettings(!showSettings)}
-            className="w-10 h-10 rounded-full bg-[#F5F5F7] hover:bg-[#E8E8ED] flex items-center justify-center btn-press cursor-pointer"
-          >
-            <svg className={`w-[22px] h-[22px] text-[#6E6E73] transition-transform duration-300 ${showSettings ? 'rotate-90' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <div className="flex items-center gap-2">
+            <button
+              onClick={toggleTheme}
+              className="w-9 h-9 rounded-full border border-border hover:bg-muted flex items-center justify-center cursor-pointer"
+              title={theme === 'light' ? '切换到暗色模式' : '切换到亮色模式'}
+            >
+              {theme === 'light' ? (
+                <svg className="w-5 h-5 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+                </svg>
+              ) : (
+                <svg className="w-5 h-5 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
+                </svg>
+              )}
+            </button>
+            <button
+              onClick={() => setShowSettings(!showSettings)}
+              className="w-9 h-9 rounded-full border border-border hover:bg-muted flex items-center justify-center cursor-pointer"
+            >
+            <svg className={`w-5 h-5 text-muted-foreground transition-transform duration-200 ${showSettings ? 'rotate-90' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
             </svg>
-          </button>
+            </button>
+          </div>
         </div>
       </header>
 
-      <div className="max-w-3xl mx-auto px-6 py-8 space-y-5">
+      <div className="max-w-2xl mx-auto px-6 py-8 space-y-6">
         {/* Settings Panel */}
         {showSettings && (
           <div className="animate-fade-in space-y-4">
             {/* ASR Config */}
-            <div className="bg-white rounded-[20px] shadow-[var(--apple-shadow)] p-6 card-hover">
-              <div className="flex items-center gap-3 mb-5">
-                <div className="w-9 h-9 rounded-[10px] bg-[rgba(0,122,255,0.1)] flex items-center justify-center">
-                  <svg className="w-[18px] h-[18px] text-[#007AFF]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
-                  </svg>
-                </div>
-                <div>
-                  <h2 className="text-[15px] font-semibold text-[#1D1D1F]">语音识别配置</h2>
-                  <p className="text-[11px] text-[#86868B]">ASR API Settings</p>
-                </div>
+            <div className="bg-card rounded-xl border border-border p-4">
+              <div className="mb-4">
+                <h2 className="text-sm font-semibold text-foreground">语音识别配置</h2>
+                <p className="text-xs text-muted-foreground">ASR API Settings</p>
               </div>
-              <div className="space-y-4">
+              <div className="space-y-3">
                 <div>
-                  <label className="block text-[13px] font-medium text-[#6E6E73] mb-2">API Key</label>
+                  <label className="block text-xs font-medium text-muted-foreground mb-1.5">API Key</label>
                   <input
                     type="password"
                     placeholder="硅基流动 API Key（必填）"
                     value={apiKey}
                     onChange={(e) => setApiKey(e.target.value)}
-                    className="w-full px-4 py-3 bg-[rgba(118,118,128,0.08)] rounded-[12px] border-0 text-[15px] text-[#1D1D1F] placeholder-[#86868B] focus:ring-2 focus:ring-[#007AFF]/20 focus:bg-white transition-all"
+                    className="w-full px-3 py-2.5 bg-transparent rounded-lg border border-border text-sm text-foreground placeholder-muted-foreground focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
                   />
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-[13px] font-medium text-[#6E6E73] mb-2">API URL</label>
+                    <label className="block text-xs font-medium text-muted-foreground mb-1.5">API URL</label>
                     <input
                       type="text"
                       value={apiUrl}
                       onChange={(e) => setApiUrl(e.target.value)}
-                      className="w-full px-4 py-3 bg-[rgba(118,118,128,0.08)] rounded-[12px] border-0 text-[13px] text-[#1D1D1F] focus:ring-2 focus:ring-[#007AFF]/20 focus:bg-white transition-all"
+                      className="w-full px-3 py-2.5 bg-transparent rounded-lg border border-border text-xs text-foreground focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
                     />
                   </div>
                   <div>
-                    <label className="block text-[13px] font-medium text-[#6E6E73] mb-2">模型</label>
+                    <label className="block text-xs font-medium text-muted-foreground mb-1.5">模型</label>
                     <input
                       type="text"
                       value={model}
                       onChange={(e) => setModel(e.target.value)}
-                      className="w-full px-4 py-3 bg-[rgba(118,118,128,0.08)] rounded-[12px] border-0 text-[13px] text-[#1D1D1F] focus:ring-2 focus:ring-[#007AFF]/20 focus:bg-white transition-all"
+                      className="w-full px-3 py-2.5 bg-transparent rounded-lg border border-border text-xs text-foreground focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
                     />
                   </div>
                 </div>
@@ -612,55 +641,48 @@ export default function Home() {
             </div>
 
             {/* LLM Config */}
-            <div className="bg-white rounded-[20px] shadow-[var(--apple-shadow)] p-6 card-hover">
-              <div className="flex items-center gap-3 mb-5">
-                <div className="w-9 h-9 rounded-[10px] bg-[rgba(0,122,255,0.1)] flex items-center justify-center">
-                  <svg className="w-[18px] h-[18px] text-[#007AFF]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                  </svg>
-                </div>
-                <div>
-                  <h2 className="text-[15px] font-semibold text-[#1D1D1F]">文本润色配置</h2>
-                  <p className="text-[11px] text-[#86868B]">LLM Polish Settings · 内置免费服务</p>
-                </div>
+            <div className="bg-card rounded-xl border border-border p-4">
+              <div className="mb-4">
+                <h2 className="text-sm font-semibold text-foreground">文本润色配置</h2>
+                <p className="text-xs text-muted-foreground">LLM · 内置免费服务</p>
               </div>
-              <div className="space-y-4">
+              <div className="space-y-3">
                 <div>
-                  <label className="block text-[13px] font-medium text-[#6E6E73] mb-2">API Key（可选）</label>
+                  <label className="block text-xs font-medium text-muted-foreground mb-1.5">API Key（可选）</label>
                   <input
                     type="password"
                     placeholder="留空使用内置免费 Key"
                     value={llmApiKey}
                     onChange={(e) => setLlmApiKey(e.target.value)}
-                    className="w-full px-4 py-3 bg-[rgba(118,118,128,0.08)] rounded-[12px] border-0 text-[15px] text-[#1D1D1F] placeholder-[#86868B] focus:ring-2 focus:ring-[#007AFF]/20 focus:bg-white transition-all"
+                    className="w-full px-3 py-2.5 bg-transparent rounded-lg border border-border text-sm text-foreground placeholder-muted-foreground focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
                   />
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-[13px] font-medium text-[#6E6E73] mb-2">API URL</label>
+                    <label className="block text-xs font-medium text-muted-foreground mb-1.5">API URL</label>
                     <input
                       type="text"
                       value={llmApiUrl}
                       onChange={(e) => setLlmApiUrl(e.target.value)}
-                      className="w-full px-4 py-3 bg-[rgba(118,118,128,0.08)] rounded-[12px] border-0 text-[13px] text-[#1D1D1F] focus:ring-2 focus:ring-[#007AFF]/20 focus:bg-white transition-all"
+                      className="w-full px-3 py-2.5 bg-transparent rounded-lg border border-border text-xs text-foreground focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
                     />
                   </div>
                   <div>
-                    <label className="block text-[13px] font-medium text-[#6E6E73] mb-2">模型</label>
+                    <label className="block text-xs font-medium text-muted-foreground mb-1.5">模型</label>
                     <input
                       type="text"
                       value={llmModel}
                       onChange={(e) => setLlmModel(e.target.value)}
-                      className="w-full px-4 py-3 bg-[rgba(118,118,128,0.08)] rounded-[12px] border-0 text-[13px] text-[#1D1D1F] focus:ring-2 focus:ring-[#007AFF]/20 focus:bg-white transition-all"
+                      className="w-full px-3 py-2.5 bg-transparent rounded-lg border border-border text-xs text-foreground focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
                     />
                   </div>
                 </div>
                 <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <label className="block text-[13px] font-medium text-[#6E6E73]">润色指令</label>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="block text-xs font-medium text-muted-foreground">润色指令</label>
                     <button
                       onClick={() => setCustomInstructions(DEFAULT_INSTRUCTIONS)}
-                      className="text-[12px] text-[#007AFF] hover:text-[#0066D6] font-medium cursor-pointer"
+                      className="text-xs text-primary hover:underline font-medium cursor-pointer"
                     >
                       恢复默认
                     </button>
@@ -670,36 +692,27 @@ export default function Home() {
                     value={customInstructions}
                     onChange={(e) => setCustomInstructions(e.target.value)}
                     rows={3}
-                    className="w-full px-4 py-3 bg-[rgba(118,118,128,0.08)] rounded-[12px] border-0 text-[13px] text-[#1D1D1F] placeholder-[#86868B] focus:ring-2 focus:ring-[#007AFF]/20 focus:bg-white transition-all resize-none"
+                    className="w-full px-3 py-2.5 bg-transparent rounded-lg border border-border text-xs text-foreground placeholder-muted-foreground focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all resize-none"
                   />
-                  <p className="mt-2 text-[11px] text-[#86868B]">自定义如何处理文本，例如：纠错、分段、翻译等</p>
                 </div>
               </div>
             </div>
 
             {/* Proxy Config */}
-            <div className="bg-white rounded-[20px] shadow-[var(--apple-shadow)] p-6 card-hover">
-              <div className="flex items-center gap-3 mb-5">
-                <div className="w-9 h-9 rounded-[10px] bg-[rgba(255,159,10,0.1)] flex items-center justify-center">
-                  <svg className="w-[18px] h-[18px] text-[#FF9F0A]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" />
-                  </svg>
-                </div>
-                <div>
-                  <h2 className="text-[15px] font-semibold text-[#1D1D1F]">网络代理</h2>
-                  <p className="text-[11px] text-[#86868B]">Proxy Settings · 留空则直连</p>
-                </div>
+            <div className="bg-card rounded-xl border border-border p-4">
+              <div className="mb-4">
+                <h2 className="text-sm font-semibold text-foreground">网络代理</h2>
+                <p className="text-xs text-muted-foreground">留空则直连</p>
               </div>
               <div>
-                <label className="block text-[13px] font-medium text-[#6E6E73] mb-2">代理地址</label>
+                <label className="block text-xs font-medium text-muted-foreground mb-1.5">代理地址</label>
                 <input
                   type="text"
                   placeholder="http://127.0.0.1:7890"
                   value={proxyUrl}
                   onChange={(e) => setProxyUrl(e.target.value)}
-                  className="w-full px-4 py-3 bg-[rgba(118,118,128,0.08)] rounded-[12px] border-0 text-[15px] text-[#1D1D1F] placeholder-[#86868B] focus:ring-2 focus:ring-[#FF9F0A]/20 focus:bg-white transition-all"
+                  className="w-full px-3 py-2.5 bg-transparent rounded-lg border border-border text-sm text-foreground placeholder-muted-foreground focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
                 />
-                <p className="mt-2 text-[11px] text-[#86868B]">用于服务器端拉取在线音频，留空表示直连（需开启 TUN 模式或无需代理）</p>
               </div>
             </div>
           </div>
@@ -707,41 +720,34 @@ export default function Home() {
 
 
         {/* Main Action Area */}
-        <div className="bg-white rounded-[20px] shadow-[var(--apple-shadow)] p-6">
-          <div className="flex items-center gap-2.5 mb-6">
-            <div className="w-9 h-9 rounded-[10px] bg-[rgba(94,92,230,0.1)] flex items-center justify-center">
-              <svg className="w-[18px] h-[18px] text-[#5E5CE6]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" />
-              </svg>
-            </div>
-            <h2 className="text-[15px] font-semibold text-[#1D1D1F]">音频来源</h2>
-          </div>
-          <div className="space-y-5">
+        <div className="bg-card rounded-xl border border-border p-4">
+          <h2 className="text-sm font-semibold text-foreground mb-4">音频来源</h2>
+          <div className="space-y-4">
             {/* 在线链接 */}
-            <div className="space-y-3">
+            <div className="space-y-2.5">
               <div className="flex items-center justify-between">
-                <label className="text-[13px] font-medium text-[#6E6E73]">在线链接</label>
-                <span className="text-[11px] text-[#86868B]">支持 asmrgay.com 及备用站</span>
+                <label className="text-xs font-medium text-muted-foreground">在线链接</label>
+                <span className="text-xs text-muted-foreground">支持 asmrgay.com</span>
               </div>
               <Input
                 type="text"
                 value={audioUrlInput}
                 onChange={(e) => setAudioUrlInput(e.target.value)}
                 placeholder="粘贴音频链接..."
-                className="h-12 px-4 bg-[rgba(118,118,128,0.08)] border-0 rounded-[12px] text-[15px] text-[#1D1D1F] placeholder:text-[#86868B] focus-visible:ring-2 focus-visible:ring-[#5E5CE6]/20 focus-visible:bg-white"
+                className="h-10 px-3 bg-transparent border-border rounded-lg text-sm"
               />
-              <div className="flex gap-3">
+              <div className="flex gap-2.5">
                 <Button
                   onClick={downloadToLocal}
                   disabled={loading || !audioUrlInput.trim()}
-                  className="flex-1 h-11 bg-gradient-to-b from-[#FF9F0A] to-[#E68A00] hover:from-[#FFB340] hover:to-[#FF9F0A] text-white rounded-[12px] text-[15px] font-medium shadow-[0_2px_8px_rgba(255,159,10,0.3)] disabled:opacity-40 btn-press cursor-pointer"
+                  className="flex-1 h-10 bg-secondary text-secondary-foreground hover:bg-secondary/80 rounded-lg text-sm font-medium"
                 >
                   {loading && status === 'fetching-url' ? '下载中...' : '下载到本地'}
                 </Button>
                 <Button
                   onClick={importFromUrl}
                   disabled={loading || !audioUrlInput.trim() || !apiKey}
-                  className="flex-1 h-11 bg-gradient-to-b from-[#5E5CE6] to-[#4B4ACF] hover:from-[#7A78F0] hover:to-[#5E5CE6] text-white rounded-[12px] text-[15px] font-medium shadow-[0_2px_8px_rgba(94,92,230,0.3)] disabled:opacity-40 btn-press cursor-pointer"
+                  className="flex-1 h-10 bg-primary text-primary-foreground hover:bg-primary/90 rounded-lg text-sm font-medium"
                 >
                   {loading && status === 'transcribing' ? '转录中...' : '直接转录'}
                 </Button>
@@ -749,14 +755,14 @@ export default function Home() {
             </div>
 
             {/* 本地文件 */}
-            <div className="space-y-3">
-              <label className="text-[13px] font-medium text-[#6E6E73]">本地文件</label>
+            <div className="space-y-2.5">
+              <label className="text-xs font-medium text-muted-foreground">本地文件</label>
               <Button
                 onClick={() => fileInputRef.current?.click()}
                 disabled={loading}
-                className="w-full h-11 bg-gradient-to-b from-[#007AFF] to-[#0066D6] hover:from-[#3395FF] hover:to-[#007AFF] text-white rounded-[12px] text-[15px] font-medium shadow-[0_2px_8px_rgba(0,122,255,0.3)] disabled:opacity-50 flex items-center justify-center gap-2 btn-press cursor-pointer"
+                className="w-full h-10 bg-primary text-primary-foreground hover:bg-primary/90 rounded-lg text-sm font-medium flex items-center justify-center gap-2"
               >
-                <svg className="w-[18px] h-[18px] flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
                 </svg>
                 选择音频文件
@@ -765,29 +771,22 @@ export default function Home() {
 
             {/* Selected File Display */}
             {fileInfo && !loading && (
-              <div className="flex items-center justify-between p-4 bg-[rgba(118,118,128,0.08)] rounded-[12px] animate-fade-in">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-[10px] bg-[rgba(0,122,255,0.1)] flex items-center justify-center">
-                    <svg className="w-5 h-5 text-[#007AFF]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" />
-                    </svg>
-                  </div>
-                  <div>
-                    <p className="text-[14px] font-medium text-[#1D1D1F]">{fileInfo.name}</p>
-                    <p className="text-[12px] text-[#86868B]">{fileInfo.size}</p>
-                  </div>
+              <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg animate-fade-in">
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium text-foreground truncate">{fileInfo.name}</p>
+                  <p className="text-xs text-muted-foreground">{fileInfo.size}</p>
                 </div>
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="w-8 h-8 rounded-full hover:bg-[rgba(255,69,58,0.1)] cursor-pointer"
+                  className="w-8 h-8 rounded-full hover:bg-destructive/10"
                   onClick={() => {
                     setSelectedFile(null)
                     setFileInfo(null)
                     if (fileInputRef.current) fileInputRef.current.value = ''
                   }}
                 >
-                  <svg className="w-4 h-4 text-[#86868B] hover:text-[#FF453A]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <svg className="w-4 h-4 text-muted-foreground hover:text-destructive" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                   </svg>
                 </Button>
@@ -798,7 +797,7 @@ export default function Home() {
             <Button
               onClick={handleStartTranscribe}
               disabled={loading || !selectedFile}
-              className="w-full h-12 bg-gradient-to-b from-[#007AFF] to-[#0066D6] hover:from-[#3395FF] hover:to-[#007AFF] text-white rounded-[12px] text-[15px] font-semibold shadow-[0_2px_8px_rgba(0,122,255,0.3)] disabled:opacity-40 transition-all btn-press cursor-pointer"
+              className="w-full h-11 bg-primary text-primary-foreground hover:bg-primary/90 rounded-lg text-sm font-semibold"
             >
               {loading ? '处理中...' : '开始转录'}
             </Button>
@@ -809,172 +808,141 @@ export default function Home() {
 
         {/* Status & Progress */}
         {(status !== 'idle' || loading) && (
-          <div className="bg-white rounded-[20px] shadow-[var(--apple-shadow)] p-6 animate-fade-in">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-3">
-                <span className={`w-2.5 h-2.5 rounded-full ${statusConfig[status].color} ${status === 'transcribing' || status === 'uploading' || status === 'uploaded' ? 'animate-pulse' : ''}`}></span>
-                <span className={`text-[14px] font-medium ${statusConfig[status].textColor}`}>{statusConfig[status].text}</span>
+          <div className="bg-card rounded-xl border border-border p-4 animate-fade-in">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2.5">
+                <span className={`w-2 h-2 rounded-full ${statusConfig[status].color} ${status === 'transcribing' || status === 'uploading' || status === 'uploaded' ? 'animate-pulse' : ''}`}></span>
+                <span className={`text-sm font-medium ${statusConfig[status].textColor}`}>{statusConfig[status].text}</span>
               </div>
-              {status === 'uploading' && <span className="text-[13px] text-[#86868B]">{uploadProgress}%</span>}
+              {status === 'uploading' && <span className="text-xs text-muted-foreground">{uploadProgress}%</span>}
             </div>
 
-            {/* Progress Bar - only show during upload */}
+            {/* Progress Bar */}
             {status === 'uploading' && (
-              <div className="relative w-full h-1.5 bg-[rgba(118,118,128,0.12)] rounded-full overflow-hidden mb-3">
+              <div className="relative w-full h-1 bg-muted rounded-full overflow-hidden mb-2">
                 <div
-                  className={`absolute left-0 top-0 h-full rounded-full transition-all duration-300 ${statusConfig[status].color}`}
+                  className="absolute left-0 top-0 h-full rounded-full bg-primary transition-all duration-300"
                   style={{ width: `${uploadProgress}%` }}
-                >
-                  <div className="absolute inset-0 progress-shine"></div>
-                </div>
+                />
               </div>
             )}
 
-            {/* Indeterminate progress for server processing */}
+            {/* Indeterminate progress */}
             {(status === 'uploaded' || status === 'transcribing' || status === 'fetching-url') && (
-              <div className="relative w-full h-1.5 bg-[rgba(118,118,128,0.12)] rounded-full overflow-hidden mb-3">
-                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-[#FF9F0A] to-transparent animate-[progress-shine_1.5s_ease-in-out_infinite]" style={{ backgroundSize: '200% 100%' }}></div>
+              <div className="relative w-full h-1 bg-muted rounded-full overflow-hidden mb-2">
+                <div className="absolute inset-0 bg-primary/60 animate-pulse" />
               </div>
             )}
 
-            {/* Status message */}
             {statusMessage && (
-              <p className="text-[13px] text-[#86868B] flex items-center gap-2">
-                {(status === 'uploading' || status === 'uploaded' || status === 'transcribing' || status === 'fetching-url') && (
-                  <svg className="animate-spin w-3.5 h-3.5 flex-shrink-0" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                  </svg>
-                )}
-                {status === 'done' && (
-                  <svg className="w-3.5 h-3.5 text-[#30D158] flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
-                  </svg>
-                )}
-                {status === 'error' && (
-                  <svg className="w-3.5 h-3.5 text-[#FF453A] flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                )}
-                {statusMessage}
-              </p>
+              <p className="text-xs text-muted-foreground">{statusMessage}</p>
             )}
           </div>
         )}
 
 
         {/* Results Section */}
-        <div className="grid gap-5 md:grid-cols-2">
-          {/* Original Result */}
-          <div className="bg-white rounded-[20px] shadow-[var(--apple-shadow)] p-6 card-hover">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-[10px] bg-[rgba(0,122,255,0.1)] flex items-center justify-center">
-                  <svg className="w-[18px] h-[18px] text-[#007AFF]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                  </svg>
-                </div>
-                <h2 className="text-[15px] font-semibold text-[#1D1D1F]">原始结果</h2>
-              </div>
-              <div className="flex gap-2">
-                {result && !result.startsWith('错误') && !result.startsWith('请求失败') && (
-                  <button
-                    onClick={() => polishText(result)}
-                    disabled={polishing}
-                    className="px-3.5 py-1.5 bg-gradient-to-b from-[#FF9F0A] to-[#E68A00] text-white rounded-[8px] text-[13px] font-medium hover:from-[#FFB340] hover:to-[#FF9F0A] disabled:opacity-50 btn-press cursor-pointer shadow-[0_1px_4px_rgba(255,159,10,0.3)]"
-                  >
-                    {polishing ? '润色中...' : '润色'}
-                  </button>
-                )}
-                {result && (
-                  <button
-                    onClick={handleCopy}
-                    className={`px-3.5 py-1.5 rounded-[8px] text-[13px] font-medium btn-press cursor-pointer transition-all ${
-                      copied ? 'bg-[#30D158] text-white shadow-[0_1px_4px_rgba(48,209,88,0.3)]' : 'bg-[rgba(118,118,128,0.08)] text-[#6E6E73] hover:bg-[rgba(118,118,128,0.12)]'
-                    }`}
-                  >
-                    {copied ? '已复制' : '复制'}
-                  </button>
-                )}
-              </div>
+        <div className="bg-card rounded-xl border border-border p-4">
+          <div className="flex items-end justify-between gap-4 mb-3">
+            <div className="flex items-center gap-4">
+              <button
+                type="button"
+                onClick={() => setActiveTab('original')}
+                className={`pb-1 text-sm font-semibold border-b-2 cursor-pointer ${
+                  activeTab === 'original'
+                    ? 'border-primary text-foreground'
+                    : 'border-transparent text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                原始文本
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab('polished')}
+                className={`pb-1 text-sm font-semibold border-b-2 cursor-pointer ${
+                  activeTab === 'polished'
+                    ? 'border-primary text-foreground'
+                    : 'border-transparent text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                润色文本
+              </button>
             </div>
-            <div className="min-h-[160px] p-4 bg-[rgba(118,118,128,0.06)] rounded-[12px] text-[#1D1D1F] whitespace-pre-wrap text-[14px] leading-[1.6]">
-              {result || <span className="text-[#86868B]">等待输入...</span>}
-            </div>
-            {result && (
-              <p className="mt-3 text-[11px] text-[#86868B]">{result.length} 字符</p>
-            )}
-          </div>
 
-          {/* Polished Result */}
-          <div className="bg-white rounded-[20px] shadow-[var(--apple-shadow)] p-6 card-hover">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-[10px] bg-[rgba(0,122,255,0.1)] flex items-center justify-center">
-                  <svg className="w-[18px] h-[18px] text-[#007AFF]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
-                  </svg>
-                </div>
-                <h2 className="text-[15px] font-semibold text-[#1D1D1F]">润色结果</h2>
-              </div>
-              {polishedResult && (
+            <div className="flex gap-1.5">
+              {result && !result.startsWith('错误') && !result.startsWith('请求失败') && (
                 <button
-                  onClick={handleCopyPolished}
-                  className={`px-3.5 py-1.5 rounded-[8px] text-[13px] font-medium btn-press cursor-pointer transition-all ${
-                    copiedPolished ? 'bg-[#30D158] text-white shadow-[0_1px_4px_rgba(48,209,88,0.3)]' : 'bg-[rgba(118,118,128,0.08)] text-[#6E6E73] hover:bg-[rgba(118,118,128,0.12)]'
+                  onClick={() => polishText(result)}
+                  disabled={polishing}
+                  className="px-2.5 py-1 bg-primary text-primary-foreground rounded-md text-xs font-medium hover:bg-primary/90 disabled:opacity-50 cursor-pointer"
+                >
+                  {polishing ? '润色中...' : '润色'}
+                </button>
+              )}
+              {(activeTab === 'original' ? result : polishedResult) && (
+                <button
+                  onClick={activeTab === 'original' ? handleCopy : handleCopyPolished}
+                  className={`px-2.5 py-1 rounded-md text-xs font-medium cursor-pointer transition-all ${
+                    activeTab === 'original'
+                      ? copied
+                        ? 'bg-emerald-500 text-white'
+                        : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                      : copiedPolished
+                        ? 'bg-emerald-500 text-white'
+                        : 'bg-muted text-muted-foreground hover:bg-muted/80'
                   }`}
                 >
-                  {copiedPolished ? '已复制' : '复制'}
+                  {activeTab === 'original' ? (copied ? '已复制' : '复制') : copiedPolished ? '已复制' : '复制'}
                 </button>
               )}
             </div>
-            <div className="min-h-[160px] p-4 bg-[rgba(118,118,128,0.06)] rounded-[12px] text-[#1D1D1F] whitespace-pre-wrap text-[14px] leading-[1.6]">
-              {polishing ? (
-                <div className="flex items-center gap-2 text-[#007AFF]">
-                  <svg className="animate-spin w-4 h-4" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                  </svg>
-                  <span className="text-[14px]">正在润色文本...</span>
-                </div>
-              ) : (
-                polishedResult || <span className="text-[#86868B]">点击"润色"按钮处理原始文本...</span>
-              )}
-            </div>
-            {polishedResult && (
-              <p className="mt-3 text-[11px] text-[#86868B]">{polishedResult.length} 字符</p>
+          </div>
+
+          <div className="min-h-[140px] p-3 bg-muted/30 rounded-lg text-foreground whitespace-pre-wrap text-sm leading-relaxed">
+            {activeTab === 'original' ? (
+              result || <span className="text-muted-foreground">等待输入...</span>
+            ) : polishing ? (
+              <div className="flex items-center gap-2 text-primary">
+                <span className="ai-dots">
+                  <span className="ai-dot" />
+                  <span className="ai-dot" />
+                  <span className="ai-dot" />
+                </span>
+                <span className="text-sm">正在润色...</span>
+              </div>
+            ) : (
+              polishedResult || <span className="text-muted-foreground">点击&quot;润色&quot;处理文本...</span>
             )}
           </div>
+
+          {activeTab === 'original' ? (
+            result && <p className="mt-2 text-xs text-muted-foreground">{result.length} 字符</p>
+          ) : (
+            polishedResult && <p className="mt-2 text-xs text-muted-foreground">{polishedResult.length} 字符</p>
+          )}
         </div>
 
         {/* Logs Panel */}
-        <div className="bg-white rounded-[20px] shadow-[var(--apple-shadow)] p-6">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2.5">
-              <div className="w-9 h-9 rounded-[10px] bg-[rgba(110,110,115,0.1)] flex items-center justify-center">
-                <svg className="w-[18px] h-[18px] text-[#6E6E73]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                </svg>
-              </div>
-              <h2 className="text-[15px] font-semibold text-[#1D1D1F]">运行日志</h2>
-            </div>
+        <div className="bg-card rounded-xl border border-border p-4">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-sm font-semibold text-foreground">运行日志</h2>
             <button
               onClick={clearLogs}
-              className="text-[13px] text-[#86868B] hover:text-[#6E6E73] transition-colors cursor-pointer"
+              className="text-xs text-muted-foreground hover:text-foreground cursor-pointer"
             >
               清空
             </button>
           </div>
           <div
             ref={logsContainerRef}
-            className="h-44 overflow-y-auto bg-[#1D1D1F] rounded-[12px] p-4 font-mono text-[12px] space-y-1"
+            className="h-36 overflow-y-auto bg-muted/30 rounded-lg p-3 font-mono text-xs space-y-0.5"
           >
             {logs.length === 0 ? (
-              <span className="text-[#48484A]">暂无日志...</span>
+              <span className="text-muted-foreground">暂无日志...</span>
             ) : (
               logs.map((log, i) => (
                 <div key={i} className={`${logColors[log.type]} animate-slide-in`}>
-                  <span className="text-[#48484A]">[{log.time}]</span> {log.message}
+                  <span className="text-muted-foreground/50">[{log.time}]</span> {log.message}
                 </div>
               ))
             )}
@@ -982,8 +950,8 @@ export default function Home() {
         </div>
 
         {/* Footer */}
-        <footer className="text-center py-8">
-          <p className="text-[13px] text-[#86868B]">
+        <footer className="text-center py-6">
+          <p className="text-xs text-muted-foreground">
             Powered by SiliconFlow ASR & DeepSeek LLM
           </p>
         </footer>
