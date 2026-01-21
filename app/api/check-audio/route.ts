@@ -1,13 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { isAlistPageUrl, resolveAlistUrl } from '@/lib/alist-utils'
-import { fetchWithProxy } from '@/lib/fetch-utils'
 import { isPrivateHost } from '@/lib/url-utils'
 
 export async function POST(request: NextRequest) {
   try {
     const body = (await request.json()) as Record<string, unknown>
     const url = String(body?.url || '').trim()
-    const proxyUrl = String(body?.proxyUrl || '').trim()
     const allowPrivateHosts = process.env.ALLOW_PRIVATE_HOSTS === '1'
 
     if (!url) {
@@ -36,10 +34,7 @@ export async function POST(request: NextRequest) {
 
     if (isAlistPageUrl(url)) {
       try {
-        const fetchFn = (fetchUrl: string, init?: RequestInit) =>
-          fetchWithProxy(fetchUrl, init, proxyUrl || undefined)
-
-        const resolved = await resolveAlistUrl(url, fetchFn)
+        const resolved = await resolveAlistUrl(url, (fetchUrl, init) => fetch(fetchUrl, init))
         actualUrl = resolved.rawUrl
         resolvedFileName = resolved.fileName
         resolvedFileSize = resolved.fileSize
@@ -66,7 +61,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Make HEAD request to actual URL
-    const response = await fetchWithProxy(actualUrl, fetchOptions, proxyUrl || undefined)
+    const response = await fetch(actualUrl, fetchOptions)
 
     if (!response.ok) {
       return NextResponse.json(

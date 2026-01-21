@@ -8,7 +8,6 @@ const DEFAULT_ASR_API_URL = 'https://api.siliconflow.cn/v1/audio/transcriptions'
 const DEFAULT_ASR_MODEL = 'TeleAI/TeleSpeechASR'
 const DEFAULT_LLM_API_URL = 'https://juya.owl.ci/v1'
 const DEFAULT_LLM_MODEL = 'DeepSeek-V3.1-Terminus'
-const DEFAULT_PROXY_URL = 'http://127.0.0.1:7890'
 const DEFAULT_INSTRUCTIONS =
   '请对以下语音转文字内容进行处理：1. 纠正错别字和语法错误 2. 添加适当的标点符号 3. 分段排版使内容更易读 4. 保持原意不变，不要添加或删除内容'
 
@@ -20,7 +19,6 @@ type Settings = {
   llmModel: string
   llmApiKey: string
   customInstructions: string
-  proxyUrl: string
 }
 
 type LogEntry = {
@@ -44,8 +42,7 @@ const areSettingsEqual = (a: Settings, b: Settings): boolean =>
   a.llmApiUrl === b.llmApiUrl &&
   a.llmModel === b.llmModel &&
   a.llmApiKey === b.llmApiKey &&
-  a.customInstructions === b.customInstructions &&
-  a.proxyUrl === b.proxyUrl
+  a.customInstructions === b.customInstructions
 
 // Logo component using PNG
 function LogoIcon({ className }: { className?: string }) {
@@ -68,7 +65,6 @@ export default function Home() {
   const [llmModel, setLlmModel] = useState(DEFAULT_LLM_MODEL)
   const [llmApiKey, setLlmApiKey] = useState('')
   const [customInstructions, setCustomInstructions] = useState(DEFAULT_INSTRUCTIONS)
-  const [proxyUrl, setProxyUrl] = useState(DEFAULT_PROXY_URL)
   const [settingsLoaded, setSettingsLoaded] = useState(false)
   const [envFilePath, setEnvFilePath] = useState('')
   const [envFileExists, setEnvFileExists] = useState(false)
@@ -78,7 +74,7 @@ export default function Home() {
   const [settingsLoadError, setSettingsLoadError] = useState('')
   const settingsInitRef = useRef(false)
 
-  const currentSettings: Settings = { apiKey, apiUrl, model, llmApiUrl, llmModel, llmApiKey, customInstructions, proxyUrl }
+  const currentSettings: Settings = { apiKey, apiUrl, model, llmApiUrl, llmModel, llmApiKey, customInstructions }
   const isDirty = !!savedSettingsRef.current && !areSettingsEqual(savedSettingsRef.current, currentSettings)
 
   const applySettings = (s: Settings) => {
@@ -89,7 +85,6 @@ export default function Home() {
     setLlmModel(s.llmModel || DEFAULT_LLM_MODEL)
     setLlmApiKey(s.llmApiKey || '')
     setCustomInstructions(s.customInstructions || DEFAULT_INSTRUCTIONS)
-    setProxyUrl(s.proxyUrl ?? DEFAULT_PROXY_URL)
   }
 
   const reloadSettingsFromEnv = async (force = false) => {
@@ -171,7 +166,7 @@ export default function Home() {
   useEffect(() => {
     if (!envSaveError) return
     setEnvSaveError('')
-  }, [apiKey, apiUrl, model, llmApiUrl, llmModel, llmApiKey, customInstructions, proxyUrl])
+  }, [apiKey, apiUrl, model, llmApiUrl, llmModel, llmApiKey, customInstructions])
 
   const [result, setResult] = useState('')
   const [polishedResult, setPolishedResult] = useState('')
@@ -462,7 +457,6 @@ export default function Home() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           url,
-          proxyUrl: proxyUrl.trim() || undefined,
         }),
       })
 
@@ -587,11 +581,11 @@ export default function Home() {
     addLog(`正在检查链接: ${url}`, 'info')
 
     try {
-      const res = await fetch('/api/check-audio', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url, proxyUrl: proxyUrl.trim() || undefined }),
-      })
+    const res = await fetch('/api/check-audio', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url }),
+    })
 
       const data = await res.json()
       if (res.ok && data.success) {
@@ -1140,22 +1134,6 @@ export default function Home() {
                   </div>
                 </div>
 
-                {/* Proxy Config */}
-                <div>
-                  <h2 className="text-sm font-medium text-foreground mb-1">网络代理</h2>
-                  <p className="text-xs text-muted-foreground mb-3">留空则直连</p>
-                  <div>
-                    <label htmlFor="proxy-url" className="block text-xs font-medium text-muted-foreground mb-1">代理地址</label>
-                    <input
-                      id="proxy-url"
-                      type="text"
-                      placeholder="http://127.0.0.1:7890"
-                      value={proxyUrl}
-                      onChange={(e) => setProxyUrl(e.target.value)}
-                      className="w-full px-3 py-2 bg-transparent rounded-lg border border-border text-sm text-foreground placeholder-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50 focus:border-primary transition-colors"
-                    />
-                  </div>
-                </div>
               </div>
             )}
 

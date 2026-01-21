@@ -87,7 +87,6 @@ type Settings = {
   llmModel: string      // LLM Model
   llmApiKey: string     // LLM API Key
   customInstructions: string // 自定义润色指令
-  proxyUrl: string      // 服务端拉取在线音频用代理（可选）
 }
 ```
 

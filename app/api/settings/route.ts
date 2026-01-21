@@ -8,7 +8,6 @@ const DEFAULT_ASR_API_URL = 'https://api.siliconflow.cn/v1/audio/transcriptions'
 const DEFAULT_ASR_MODEL = 'TeleAI/TeleSpeechASR'
 const DEFAULT_LLM_API_URL = 'https://juya.owl.ci/v1'
 const DEFAULT_LLM_MODEL = 'DeepSeek-V3.1-Terminus'
-const DEFAULT_PROXY_URL = 'http://127.0.0.1:7890'
 const DEFAULT_INSTRUCTIONS =
   '请对以下语音转文字内容进行处理：1. 纠正错别字和语法错误 2. 添加适当的标点符号 3. 分段排版使内容更易读 4. 保持原意不变，不要添加或删除内容'
 
@@ -20,7 +19,6 @@ type Settings = {
   llmModel: string
   llmApiKey: string
   customInstructions: string
-  proxyUrl: string
 }
 
 const getEnvFilePath = () => path.resolve(process.cwd(), process.env.APP_SETTINGS_ENV_FILE || '.env')
@@ -33,7 +31,6 @@ const toSettings = (env: EnvMap): Settings => ({
   llmModel: env.LLM_MODEL ?? DEFAULT_LLM_MODEL,
   llmApiKey: env.LLM_API_KEY ?? '',
   customInstructions: env.CUSTOM_INSTRUCTIONS ?? DEFAULT_INSTRUCTIONS,
-  proxyUrl: env.PROXY_URL ?? DEFAULT_PROXY_URL,
 })
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -57,7 +54,6 @@ const parseSettingsBody = async (req: NextRequest): Promise<Settings | null> => 
   const llmModel = readString(body.llmModel)
   const llmApiKey = readString(body.llmApiKey)
   const customInstructions = readString(body.customInstructions)
-  const proxyUrl = readString(body.proxyUrl)
 
   if (
     apiKey === null ||
@@ -66,16 +62,14 @@ const parseSettingsBody = async (req: NextRequest): Promise<Settings | null> => 
     llmApiUrl === null ||
     llmModel === null ||
     llmApiKey === null ||
-    customInstructions === null ||
-    proxyUrl === null
+    customInstructions === null
   ) {
     return null
   }
 
   if (customInstructions.length > 10_000) return null
-  if (proxyUrl.length > 2_000) return null
 
-  return { apiKey, apiUrl, model, llmApiUrl, llmModel, llmApiKey, customInstructions, proxyUrl }
+  return { apiKey, apiUrl, model, llmApiUrl, llmModel, llmApiKey, customInstructions }
 }
 
 export async function GET(): Promise<NextResponse> {
@@ -107,7 +101,6 @@ export async function PUT(req: NextRequest): Promise<NextResponse> {
     LLM_API_URL: nextSettings.llmApiUrl.trim() || DEFAULT_LLM_API_URL,
     LLM_MODEL: nextSettings.llmModel.trim() || DEFAULT_LLM_MODEL,
     CUSTOM_INSTRUCTIONS: nextSettings.customInstructions.trim() || DEFAULT_INSTRUCTIONS,
-    PROXY_URL: nextSettings.proxyUrl.trim(),
   }
 
   try {

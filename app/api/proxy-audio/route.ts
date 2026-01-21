@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { isAlistPageUrl, resolveAlistUrl } from '@/lib/alist-utils'
-import { fetchWithProxy } from '@/lib/fetch-utils'
 import { getAudioMimeType, isPrivateHost, isValidAudioUrl } from '@/lib/url-utils'
 
 export const runtime = 'nodejs'
@@ -18,7 +17,6 @@ const MAX_AUDIO_BYTES =
  *
  * Request body:
  * - url: 音频 URL（支持 AList 播放页面）
- * - proxyUrl?: 可选代理
  *
  * Response:
  * - 成功：音频二进制流，带 Content-Length, Content-Type, X-File-Name 头
@@ -37,16 +35,17 @@ export async function POST(req: NextRequest): Promise<Response> {
     return NextResponse.json({ error: '缺少音频 URL' }, { status: 400 })
   }
 
-  const proxyUrl = String(body?.proxyUrl || '').trim()
   const allowPrivateHosts = process.env.ALLOW_PRIVATE_HOSTS === '1'
 
   // 如果是 AList 播放页面，先解析真实音频 URL
   let fileName = ''
   if (isAlistPageUrl(audioUrl)) {
     try {
-      const fetchFn = (fetchUrl: string, init?: RequestInit) =>
-        fetchWithProxy(fetchUrl, init, proxyUrl || undefined)
-      const result = await resolveAlistUrl(audioUrl, fetchFn, DEFAULT_USER_AGENT)
+      const result = await resolveAlistUrl(
+        audioUrl,
+        (fetchUrl, init) => fetch(fetchUrl, init),
+        DEFAULT_USER_AGENT
+      )
       audioUrl = result.rawUrl
       fileName = result.fileName
     } catch (error) {
@@ -81,7 +80,7 @@ export async function POST(req: NextRequest): Promise<Response> {
 
   let audioResponse: Response
   try {
-    audioResponse = await fetchWithProxy(audioUrl, {
+    audioResponse = await fetch(audioUrl, {
       method: 'GET',
       redirect: 'follow',
       signal: abortController.signal,
@@ -89,7 +88,7 @@ export async function POST(req: NextRequest): Promise<Response> {
         'User-Agent': DEFAULT_USER_AGENT,
         Referer: urlObj.origin,
       },
-    }, proxyUrl || undefined)
+    })
   } catch (error) {
     clearTimeout(timeoutId)
     if ((error as Error).name === 'AbortError') {
