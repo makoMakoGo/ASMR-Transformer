@@ -32,7 +32,7 @@ app/
 ├── api/check-audio/route.ts   # 检查在线音频元信息（支持 AList 播放页面解析）
 ├── globals.css            # 暖奶油色设计系统（CSS 变量、动画）
 ├── layout.tsx             # Root layout with metadata
-└── page.tsx               # Main UI (4-Tab 布局：来源/结果/设置/日志)
+└── page.tsx               # Main UI (5-Tab 布局：来源/转录结果/润色输出/设置/日志)
 lib/
 ├── alist-utils.ts         # AList 站点检测和 URL 解析（共享工具）
 └── url-utils.ts           # URL 处理工具函数
@@ -40,9 +40,10 @@ lib/
 
 ### Key Components
 
-**app/page.tsx** - Client component with 4-tab layout:
+**app/page.tsx** - Client component with 5-tab layout:
 - **来源 Tab**: 本地文件上传 + 在线链接检查 → 统一音频信息卡片 → 开始转录
-- **结果 Tab**: 原始文本/润色文本子 Tab，支持一键润色和复制
+- **转录结果 Tab**: 原始文本展示 + 一键润色入口
+- **润色输出 Tab**: SSE 流式润色结果 + 复制
 - **设置 Tab**: ASR 配置、LLM 配置
 - **日志 Tab**: 实时日志，支持按类型筛选（全部/错误/成功/信息）
 
