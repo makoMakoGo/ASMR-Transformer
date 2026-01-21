@@ -12,9 +12,8 @@
 |------|------|
 | `CLAUDE.md` | Claude Code 指导文件，包含项目架构、代码风格等 |
 | `AGENTS.md` | AI Agent 通用指导文件 |
-| `.serena/` | Serena MCP 辅助配置，提供代码分析和记忆功能 |
 
-这些文件会实时更新，帮助 AI 更好地理解项目上下文。
+如果你使用 Serena MCP，本地生成的 `.serena/` 已加入 `.gitignore`，不要提交到仓库。
 
 ### 环境准备
 
