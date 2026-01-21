@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { isAlistPageUrl, resolveAlistUrl } from '@/lib/alist-utils'
-import { getAudioMimeType, isPrivateHost, isValidAudioUrl } from '@/lib/url-utils'
+import { getAudioMimeType, isAllowedAudioHost, isPrivateHost, isValidAudioUrl } from '@/lib/url-utils'
 
 export const runtime = 'nodejs'
 
@@ -35,11 +35,33 @@ export async function POST(req: NextRequest): Promise<Response> {
     return NextResponse.json({ error: '缺少音频 URL' }, { status: 400 })
   }
 
-  const allowPrivateHosts = process.env.ALLOW_PRIVATE_HOSTS === '1'
+  let inputUrl: URL
+  try {
+    inputUrl = new URL(audioUrl)
+  } catch {
+    return NextResponse.json({ error: '音频 URL 无效或不受支持' }, { status: 400 })
+  }
+
+  if (!['http:', 'https:'].includes(inputUrl.protocol)) {
+    return NextResponse.json({ error: '音频 URL 无效或不受支持' }, { status: 400 })
+  }
+
+  if (isPrivateHost(inputUrl.hostname)) {
+    return NextResponse.json({ error: '不支持访问本机或内网地址' }, { status: 400 })
+  }
+
+  if (!isAllowedAudioHost(inputUrl.hostname)) {
+    return NextResponse.json({ error: '音频 URL 无效或不受支持' }, { status: 400 })
+  }
 
   // 如果是 AList 播放页面，先解析真实音频 URL
   let fileName = ''
-  if (isAlistPageUrl(audioUrl)) {
+  const isAlistPage = isAlistPageUrl(audioUrl)
+  if (!isAlistPage && !isValidAudioUrl(audioUrl)) {
+    return NextResponse.json({ error: '音频 URL 无效或不受支持' }, { status: 400 })
+  }
+
+  if (isAlistPage) {
     try {
       const result = await resolveAlistUrl(
         audioUrl,
@@ -61,7 +83,7 @@ export async function POST(req: NextRequest): Promise<Response> {
   }
 
   const urlObj = new URL(audioUrl)
-  if (!allowPrivateHosts && isPrivateHost(urlObj.hostname)) {
+  if (isPrivateHost(urlObj.hostname)) {
     return NextResponse.json({ error: '不支持访问本机或内网地址' }, { status: 400 })
   }
 

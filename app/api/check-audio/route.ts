@@ -1,12 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { isAlistPageUrl, resolveAlistUrl } from '@/lib/alist-utils'
-import { isPrivateHost } from '@/lib/url-utils'
+import { isAllowedAudioHost, isPrivateHost, isValidAudioUrl } from '@/lib/url-utils'
 
 export async function POST(request: NextRequest) {
   try {
     const body = (await request.json()) as Record<string, unknown>
     const url = String(body?.url || '').trim()
-    const allowPrivateHosts = process.env.ALLOW_PRIVATE_HOSTS === '1'
 
     if (!url) {
       return NextResponse.json({ success: false, error: '缺少 URL 参数' }, { status: 400 })
@@ -19,11 +18,16 @@ export async function POST(request: NextRequest) {
       if (!['http:', 'https:'].includes(parsedUrl.protocol)) {
         return NextResponse.json({ success: false, error: '仅支持 http/https 链接' }, { status: 400 })
       }
-      if (!allowPrivateHosts && isPrivateHost(parsedUrl.hostname)) {
-        return NextResponse.json({ success: false, error: '不支持访问本机或内网地址' }, { status: 400 })
-      }
     } catch {
       return NextResponse.json({ success: false, error: '无效的 URL' }, { status: 400 })
+    }
+
+    if (isPrivateHost(parsedUrl.hostname)) {
+      return NextResponse.json({ success: false, error: '不支持访问本机或内网地址' }, { status: 400 })
+    }
+
+    if (!isAllowedAudioHost(parsedUrl.hostname)) {
+      return NextResponse.json({ success: false, error: '音频 URL 无效或不受支持' }, { status: 400 })
     }
 
     // 如果是 AList 播放页面，先解析真实音频 URL
@@ -32,7 +36,13 @@ export async function POST(request: NextRequest) {
     let resolvedFileSize: number | undefined
     let resolvedContentType: string | undefined
 
-    if (isAlistPageUrl(url)) {
+    const isAlistPage = isAlistPageUrl(url)
+
+    if (!isAlistPage && !isValidAudioUrl(url)) {
+      return NextResponse.json({ success: false, error: '音频 URL 无效或不受支持' }, { status: 400 })
+    }
+
+    if (isAlistPage) {
       try {
         const resolved = await resolveAlistUrl(url, (fetchUrl, init) => fetch(fetchUrl, init))
         actualUrl = resolved.rawUrl
@@ -53,11 +63,13 @@ export async function POST(request: NextRequest) {
       },
     }
 
-    if (!allowPrivateHosts) {
-      const actualUrlObj = new URL(actualUrl)
-      if (isPrivateHost(actualUrlObj.hostname)) {
-        return NextResponse.json({ success: false, error: '不支持访问本机或内网地址' }, { status: 400 })
-      }
+    const actualUrlObj = new URL(actualUrl)
+    if (isPrivateHost(actualUrlObj.hostname)) {
+      return NextResponse.json({ success: false, error: '不支持访问本机或内网地址' }, { status: 400 })
+    }
+
+    if (!isValidAudioUrl(actualUrl)) {
+      return NextResponse.json({ success: false, error: '音频 URL 无效或不受支持' }, { status: 400 })
     }
 
     // Make HEAD request to actual URL

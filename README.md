@@ -108,7 +108,11 @@ cp .env.example .env
 
 ### 在线音频链接
 
-支持 asmrgay.com 主站及备用站（asmr.pw、asmr.loan、asmr.party、asmr.stream）的播放页面 URL，以及 .mp3/.wav 等直链。
+仅支持以下站点的播放页面 URL / 直链：
+- `www.asmrgay.com`（主站）
+- `www.asmr.pw` / `www.asmr.loan` / `www.asmr.party` / `www.asmr.stream`（备用站）
+
+说明：播放页通过 AList API 解析后，真实下载链接可能会跳到 `asmr.121231234.xyz`（已允许）。其它域名会被直接拒绝。
 
 1. 在主界面"在线链接"输入框粘贴链接
 2. 选择操作：

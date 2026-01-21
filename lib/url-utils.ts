@@ -1,16 +1,11 @@
 const AUDIO_EXTENSIONS = ['mp3', 'wav', 'm4a', 'flac', 'ogg', 'webm', 'aac']
-const TRUSTED_HOSTS = [
-  'asmrgay.com',
-  'www.asmrgay.com',
-  'asmr.pw',
-  'www.asmr.pw',
-  'asmr.loan',
-  'www.asmr.loan',
-  'asmr.party',
-  'www.asmr.party',
-  'asmr.stream',
-  'www.asmr.stream',
-  'asmr.121231234.xyz',
+const ALLOWED_AUDIO_HOSTS: Array<{ host: string; allowSubdomains: boolean }> = [
+  { host: 'asmrgay.com', allowSubdomains: true },
+  { host: 'asmr.pw', allowSubdomains: true },
+  { host: 'asmr.loan', allowSubdomains: true },
+  { host: 'asmr.party', allowSubdomains: true },
+  { host: 'asmr.stream', allowSubdomains: true },
+  { host: 'asmr.121231234.xyz', allowSubdomains: false },
 ]
 
 const MIME_MAP: Record<string, string> = {
@@ -32,6 +27,14 @@ const MIME_TO_EXTENSION: Record<string, string> = Object.entries(MIME_MAP).reduc
 )
 
 export const allowedAudioExtensions = AUDIO_EXTENSIONS
+
+export const isAllowedAudioHost = (host: string): boolean => {
+  const h = host.trim().toLowerCase()
+  if (!h) return false
+  return ALLOWED_AUDIO_HOSTS.some(({ host: allowed, allowSubdomains }) =>
+    allowSubdomains ? h === allowed || h.endsWith(`.${allowed}`) : h === allowed
+  )
+}
 
 const parseIpv4 = (host: string): [number, number, number, number] | null => {
   if (!/^\d{1,3}(\.\d{1,3}){3}$/.test(host)) return null
@@ -98,15 +101,15 @@ export const isValidAudioUrl = (input: string): boolean => {
 
   if (!['http:', 'https:'].includes(url.protocol)) return false
 
+  if (!isAllowedAudioHost(url.hostname)) return false
+
   const ext = getExtensionFromUrl(input)
-  const hostname = url.hostname.toLowerCase()
 
   if (ext) {
     return AUDIO_EXTENSIONS.includes(ext)
   }
 
-  // Allow trusted hosts even when no explicit extension is present
-  return TRUSTED_HOSTS.some((host) => hostname === host || hostname.endsWith(`.${host}`))
+  return false
 }
 
 export const extractFileName = (input: string): string => {
