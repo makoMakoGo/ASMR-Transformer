@@ -483,7 +483,7 @@ export default function Home() {
       const fileNameHeader = proxyRes.headers.get('x-file-name')
       const fileName = fileNameHeader ? decodeURIComponent(fileNameHeader) : '在线音频.mp3'
       const mimeType = proxyRes.headers.get('content-type') || 'audio/mpeg'
-      const CLIENT_MAX_SIZE_BYTES = 50 * 1024 * 1024
+      const CLIENT_MAX_SIZE_BYTES = 100 * 1024 * 1024
 
       if (totalSize > 0 && totalSize > CLIENT_MAX_SIZE_BYTES) {
         throw new Error(
