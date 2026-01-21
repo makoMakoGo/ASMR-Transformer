@@ -25,7 +25,7 @@ npm start            # Start production server (http://localhost:3045, bind 127.
 ## Architecture
 
 ### App Structure
-```
+```plaintext
 app/
 ├── api/polish/route.ts        # LLM 文本润色（SSE 流式）
 ├── api/proxy-audio/route.ts   # 流式代理在线音频（返回二进制流，前端显示下载进度）
