@@ -8,6 +8,6 @@ node_modules
 .env.test
 *.log
 coverage
-
+.codex
 # Downloaded audio files
 audio/
