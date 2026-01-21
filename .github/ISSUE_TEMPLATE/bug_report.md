@@ -29,7 +29,7 @@ assignees: ''
 
 - 操作系统: [例如 Windows 11, macOS 14]
 - 浏览器: [例如 Chrome 120, Safari 17]
-- 部署方式: [npm run dev / Docker / 其他]
+- 部署方式: [npm run dev / npm start / 其他]
 
 ## 📋 补充信息
 

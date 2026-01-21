@@ -1,6 +1,0 @@
-services:
-  app:
-    build: .
-    ports:
-      - "127.0.0.1:3045:3000"
-    restart: unless-stopped

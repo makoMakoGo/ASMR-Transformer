@@ -1,4 +1,4 @@
-# 🎙️ ASMR Transformer
+<h1 align="center">🎙️ ASMR Transformer</h1>
 
 <p align="center">
   <img src="docs/images/juya-foot.jpg" alt="橘鸦的诱惑" width="400" />
@@ -16,31 +16,32 @@
   <a href="#-license">License</a>
 </p>
 
----
+<p align="center">
+  <img src="https://img.shields.io/badge/Next.js-16-black?logo=next.js&logoColor=white" alt="Next.js" />
+  <img src="https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=000000" alt="React" />
+  <img src="https://img.shields.io/badge/TypeScript-5.7-3178C6?logo=typescript&logoColor=white" alt="TypeScript" />
+  <img src="https://img.shields.io/badge/Tailwind_CSS-3.4-06B6D4?logo=tailwindcss&logoColor=white" alt="Tailwind CSS" />
+  <img src="https://img.shields.io/badge/Node.js-runtime-339933?logo=node.js&logoColor=white" alt="Node.js" />
+</p>
 
-一款简洁优雅的语音识别与文本润色工具，采用 Apple 风格设计，支持音频文件上传、从 asmrgay.com 及备用站在线导入/下载音频。
+---
 
 ![界面预览](docs/images/image-1.png)
 
-## 📋 TODO / 进展
-
-- [x] 增加音频来源，支持从 [asmrgay.com](https://asmrgay.com/asmr) 链接在线导入
-- [ ] 做更多模型适配，探索更多 Audio-to-Text 模型
-- [ ] 扩充功能：识别后由 AI 定制仿写 ASMR 内容，并通过音色克隆进行 TTS
-- [ ] API 接口同步支持远程服务器部署（Deno Deploy、Docker 等）
-
 ## ✨ 特性
 
+一款简洁优雅的语音识别与文本润色工具，采用 Apple 风格设计，支持音频文件上传、从 asmrgay.com 及备用站在线导入/下载音频。
+
 - **🎤 语音识别** - 支持上传音频文件或粘贴 asmrgay.com 及备用站 URL，调用硅基流动 ASR API 进行高精度语音转文字
-- **✨ 智能润色** - 内置免费 LLM 润色服务，自动纠错、添加标点、分段排版
+- **✨ 智能润色** - 支持 OpenAI 兼容 LLM 润色，自动纠错、添加标点、分段排版（不再内置免费 Key）
 - **🎯 自定义润色指令** - 可自定义润色规则，适配不同场景（会议记录、采访整理、翻译等）
-- **💾 设置持久化** - 所有配置自动保存到浏览器 localStorage，下次打开无需重新填写
+- **💾 设置持久化** - 默认从服务器 `.env` 读取，WebUI 修改后点击「保存」写回 `.env`
 - **📊 实时进度** - 详细的上传进度、处理状态和运行日志
 - **🍎 Apple 风格 UI** - 圆润卡片、毛玻璃效果、流畅动画，简洁美观
 
 ## 🚀 部署方式
 
-### 方式一：本地运行
+### 本地运行
 
 ```bash
 # 克隆项目
@@ -59,15 +60,22 @@ npm run dev -- -p 3092
 
 打开浏览器访问 http://localhost:3045 (或自定义端口)
 
-### 方式二：Docker 部署（推荐生产环境）
+## 🔧 配置说明
+
+### 配置方式（推荐）
+
+1. 复制模板并创建本地配置文件：
 
 ```bash
-docker compose up -d --build
+cp .env.example .env
 ```
 
-默认仅绑定本机端口（`127.0.0.1:3045:3000`），访问 http://localhost:3045
+2. 两种配置方式二选一：
+   - 直接编辑 `.env`
+   - 打开 WebUI → 「设置」面板修改并点击「保存」写回 `.env`
+   - 设置页顶部提供「保存 / 重新加载 / 放弃改动」用于管理未保存改动
 
-## 🔧 配置说明
+可选环境变量：`APP_SETTINGS_ENV_FILE`（指定 WebUI 读写的 `.env` 文件路径，默认 `./.env`）
 
 ### 语音识别 API（必填）
 
@@ -83,11 +91,9 @@ docker compose up -d --build
 
 ### 文本润色 API（可选）
 
-工具内置了免费不限量的润色服务，开箱即用，无需配置。
-
 如需使用自己的 LLM API：
 - 支持任何 OpenAI 兼容的 API（如 OpenAI、DeepSeek、通义千问等）
-- 在设置中填写 API URL、模型名称和 API Key
+- 在设置中填写 API URL、模型名称和 API Key（如果你的服务不需要 Key，可留空）
 
 ### 自定义润色指令
 
@@ -144,20 +150,8 @@ docker compose up -d --build
 ├── tests/                    # 测试文件
 │   ├── fixtures/             # 测试资源
 │   └── unit/                 # 单元测试
-├── Dockerfile                # Docker 构建配置
-├── docker-compose.yml        # Docker Compose 配置
 └── package.json
 ```
-
-## 🛠️ 技术栈
-
-| 技术 | 版本 |
-|------|------|
-| Next.js | 16 (App Router) |
-| TypeScript | 5.7 |
-| React | 19 |
-| Tailwind CSS | 3.4 |
-| 部署 | Docker / Node.js |
 
 ## 📝 使用流程
 

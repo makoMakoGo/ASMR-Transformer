@@ -7,12 +7,9 @@ const DEFAULT_ASR_API_URL = 'https://api.siliconflow.cn/v1/audio/transcriptions'
 const DEFAULT_ASR_MODEL = 'TeleAI/TeleSpeechASR'
 const DEFAULT_LLM_API_URL = 'https://juya.owl.ci/v1'
 const DEFAULT_LLM_MODEL = 'DeepSeek-V3.1-Terminus'
-const DEFAULT_LLM_API_KEY = 'sk-kUm2RSHxuRJyjdrzdwprHYFYwvE4NTkIzRoyyaiDoh7YyDIZ'
 const DEFAULT_PROXY_URL = 'http://127.0.0.1:7890'
 const DEFAULT_INSTRUCTIONS =
   '请对以下语音转文字内容进行处理：1. 纠正错别字和语法错误 2. 添加适当的标点符号 3. 分段排版使内容更易读 4. 保持原意不变，不要添加或删除内容'
-
-const STORAGE_KEY = 'voice-to-text-settings'
 
 type Settings = {
   apiKey: string
@@ -39,24 +36,15 @@ type AudioInfo = {
   url?: string
 }
 
-const getStoredSettings = (): Settings | null => {
-  if (typeof window === 'undefined') return null
-  try {
-    const stored = localStorage.getItem(STORAGE_KEY)
-    return stored ? JSON.parse(stored) : null
-  } catch {
-    return null
-  }
-}
-
-const saveSettings = (settings: Settings) => {
-  if (typeof window === 'undefined') return
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(settings))
-  } catch {
-    // ignore storage errors
-  }
-}
+const areSettingsEqual = (a: Settings, b: Settings): boolean =>
+  a.apiKey === b.apiKey &&
+  a.apiUrl === b.apiUrl &&
+  a.model === b.model &&
+  a.llmApiUrl === b.llmApiUrl &&
+  a.llmModel === b.llmModel &&
+  a.llmApiKey === b.llmApiKey &&
+  a.customInstructions === b.customInstructions &&
+  a.proxyUrl === b.proxyUrl
 
 // Clean microphone + document icon for voice-to-text
 function LogoIcon({ className }: { className?: string }) {
@@ -84,26 +72,105 @@ export default function Home() {
   const [customInstructions, setCustomInstructions] = useState(DEFAULT_INSTRUCTIONS)
   const [proxyUrl, setProxyUrl] = useState(DEFAULT_PROXY_URL)
   const [settingsLoaded, setSettingsLoaded] = useState(false)
+  const [envFilePath, setEnvFilePath] = useState('')
+  const [envFileExists, setEnvFileExists] = useState(false)
+  const savedSettingsRef = useRef<Settings | null>(null)
+  const [savingSettings, setSavingSettings] = useState(false)
+  const [envSaveError, setEnvSaveError] = useState('')
+  const [settingsLoadError, setSettingsLoadError] = useState('')
+
+  const currentSettings: Settings = { apiKey, apiUrl, model, llmApiUrl, llmModel, llmApiKey, customInstructions, proxyUrl }
+  const isDirty = !!savedSettingsRef.current && !areSettingsEqual(savedSettingsRef.current, currentSettings)
+
+  const applySettings = (s: Settings) => {
+    setApiKey(s.apiKey || '')
+    setApiUrl(s.apiUrl || DEFAULT_ASR_API_URL)
+    setModel(s.model || DEFAULT_ASR_MODEL)
+    setLlmApiUrl(s.llmApiUrl || DEFAULT_LLM_API_URL)
+    setLlmModel(s.llmModel || DEFAULT_LLM_MODEL)
+    setLlmApiKey(s.llmApiKey || '')
+    setCustomInstructions(s.customInstructions || DEFAULT_INSTRUCTIONS)
+    setProxyUrl(s.proxyUrl ?? DEFAULT_PROXY_URL)
+  }
+
+  const reloadSettingsFromEnv = async (force = false) => {
+    if (!force && isDirty) {
+      const ok = window.confirm('当前修改尚未保存，重新加载会覆盖本地改动。确定要继续吗？')
+      if (!ok) return
+    }
+
+    setSettingsLoadError('')
+    setEnvSaveError('')
+    try {
+      const res = await fetch('/api/settings', { method: 'GET' })
+      const data = await res.json()
+      if (!res.ok || !data?.success || !data?.settings) {
+        throw new Error(data?.error || `HTTP ${res.status}`)
+      }
+
+      const s = data.settings as Settings
+      applySettings(s)
+      savedSettingsRef.current = s
+      if (data.envFile?.path) setEnvFilePath(String(data.envFile.path))
+      setEnvFileExists(Boolean(data.envFile?.exists))
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e)
+      setSettingsLoadError(`加载 .env 设置失败: ${msg}`)
+    }
+  }
+
+  const saveSettingsToEnv = async () => {
+    if (!isDirty) return
+    setSavingSettings(true)
+    setEnvSaveError('')
+
+    try {
+      const res = await fetch('/api/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(currentSettings),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok || !data?.success || !data?.settings) throw new Error(data?.error || `HTTP ${res.status}`)
+
+      const s = data.settings as Settings
+      applySettings(s)
+      savedSettingsRef.current = s
+      if (data.envFile?.path) setEnvFilePath(String(data.envFile.path))
+      setEnvFileExists(Boolean(data.envFile?.exists))
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e)
+      setEnvSaveError(msg)
+    } finally {
+      setSavingSettings(false)
+    }
+  }
+
+  const discardLocalChanges = () => {
+    if (!savedSettingsRef.current || !isDirty) return
+    const ok = window.confirm('放弃未保存的修改并恢复到上次保存/加载的值？')
+    if (!ok) return
+    setSettingsLoadError('')
+    setEnvSaveError('')
+    applySettings(savedSettingsRef.current)
+  }
 
   useEffect(() => {
-    const stored = getStoredSettings()
-    if (stored) {
-      setApiKey(stored.apiKey || '')
-      setApiUrl(stored.apiUrl || DEFAULT_ASR_API_URL)
-      setModel(stored.model || DEFAULT_ASR_MODEL)
-      setLlmApiUrl(stored.llmApiUrl || DEFAULT_LLM_API_URL)
-      setLlmModel(stored.llmModel || DEFAULT_LLM_MODEL)
-      setLlmApiKey(stored.llmApiKey || '')
-      setCustomInstructions(stored.customInstructions || DEFAULT_INSTRUCTIONS)
-      setProxyUrl(stored.proxyUrl ?? DEFAULT_PROXY_URL)
+    const loadSettings = async () => {
+      await reloadSettingsFromEnv(true)
+      if (!savedSettingsRef.current) {
+        savedSettingsRef.current = { ...currentSettings }
+        setEnvFileExists(false)
+      }
+      setSettingsLoaded(true)
     }
-    setSettingsLoaded(true)
+    loadSettings()
   }, [])
 
   useEffect(() => {
-    if (!settingsLoaded) return
-    saveSettings({ apiKey, apiUrl, model, llmApiUrl, llmModel, llmApiKey, customInstructions, proxyUrl })
-  }, [apiKey, apiUrl, model, llmApiUrl, llmModel, llmApiKey, customInstructions, proxyUrl, settingsLoaded])
+    if (!envSaveError) return
+    setEnvSaveError('')
+  }, [apiKey, apiUrl, model, llmApiUrl, llmModel, llmApiKey, customInstructions, proxyUrl])
 
   const [result, setResult] = useState('')
   const [polishedResult, setPolishedResult] = useState('')
@@ -173,8 +240,7 @@ export default function Home() {
       return
     }
 
-    const effectiveLlmApiKey = llmApiKey.trim() || DEFAULT_LLM_API_KEY
-    const usingFallbackKey = llmApiKey.trim() === ''
+    const effectiveLlmApiKey = llmApiKey.trim()
 
     setPolishing(true)
     setPolishedResult('')
@@ -184,9 +250,7 @@ export default function Home() {
     addLog('开始文本润色...', 'info')
     addLog(`LLM API: ${effectiveLlmApiUrl}`, 'info')
     addLog(`LLM 模型: ${effectiveLlmModel}`, 'info')
-    if (usingFallbackKey) {
-      addLog('未填写 LLM Key，已自动使用内置免费 Key', 'warning')
-    }
+    if (!effectiveLlmApiKey) addLog('未填写 LLM API Key，将尝试无鉴权请求（若服务需要 Key 会失败）', 'warning')
 
     try {
       const res = await fetch('/api/polish', {
@@ -195,7 +259,7 @@ export default function Home() {
         body: JSON.stringify({
           text,
           apiUrl: effectiveLlmApiUrl,
-          apiKey: effectiveLlmApiKey,
+          apiKey: effectiveLlmApiKey || undefined,
           model: effectiveLlmModel,
           customInstructions: customInstructions.trim() || DEFAULT_INSTRUCTIONS,
         }),
@@ -864,6 +928,60 @@ export default function Home() {
             {/* Settings Tab */}
             {currentTab === 'settings' && (
               <div role="tabpanel" id="tabpanel-settings" aria-labelledby="tab-settings" className="space-y-5 animate-fade-in">
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="text-xs text-muted-foreground truncate">
+                      配置文件: {envFilePath || '.env'}
+                      {!envFileExists && (
+                        <span className="ml-2 text-amber-600 dark:text-amber-400">（尚未创建）</span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div
+                        className={`text-xs font-medium ${
+                          savingSettings
+                            ? 'text-amber-600 dark:text-amber-400'
+                          : envSaveError
+                          ? 'text-destructive'
+                          : isDirty
+                          ? 'text-amber-600 dark:text-amber-400'
+                          : 'text-emerald-600 dark:text-emerald-400'
+                        }`}
+                      >
+                        {savingSettings ? '保存中...' : envSaveError ? '保存失败' : isDirty ? '未保存' : '已保存'}
+                      </div>
+                      <button
+                        onClick={() => reloadSettingsFromEnv(false)}
+                        disabled={savingSettings}
+                        className="px-3 py-1 min-h-[32px] bg-muted text-muted-foreground hover:bg-muted/80 disabled:opacity-50 disabled:cursor-not-allowed rounded-md text-xs font-medium cursor-pointer transition-colors"
+                      >
+                        重新加载
+                      </button>
+                      <button
+                        onClick={discardLocalChanges}
+                        disabled={savingSettings || !isDirty}
+                        className="px-3 py-1 min-h-[32px] bg-muted text-muted-foreground hover:bg-muted/80 disabled:opacity-50 disabled:cursor-not-allowed rounded-md text-xs font-medium cursor-pointer transition-colors"
+                      >
+                        放弃改动
+                      </button>
+                      <button
+                        onClick={saveSettingsToEnv}
+                        disabled={!settingsLoaded || savingSettings || !isDirty}
+                        className="px-3 py-1 min-h-[32px] bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed rounded-md text-xs font-medium cursor-pointer transition-colors"
+                      >
+                        保存
+                      </button>
+                    </div>
+                  </div>
+                  {settingsLoadError && <div className="text-xs text-destructive truncate">{settingsLoadError}</div>}
+                  {envSaveError && <div className="text-xs text-destructive truncate">保存失败: {envSaveError}</div>}
+                  {isDirty && (
+                    <div className="text-xs text-amber-600 dark:text-amber-400">
+                      改动未保存：点击「保存」写入 {envFilePath || '.env'}，或点击「放弃改动」撤销本地修改。
+                    </div>
+                  )}
+                </div>
+
                 {/* ASR Config */}
                 <div>
                   <h2 className="text-sm font-medium text-foreground mb-1">语音识别配置</h2>
@@ -905,17 +1023,17 @@ export default function Home() {
                   </div>
                 </div>
 
-                {/* LLM Config */}
+                  {/* LLM Config */}
                 <div>
                   <h2 className="text-sm font-medium text-foreground mb-1">文本润色配置</h2>
-                  <p className="text-xs text-muted-foreground mb-3">LLM · 内置免费服务</p>
+                  <p className="text-xs text-muted-foreground mb-3">LLM · OpenAI 兼容</p>
                   <div className="space-y-3">
                     <div>
                       <label htmlFor="llm-api-key" className="block text-xs font-medium text-muted-foreground mb-1">API Key（可选）</label>
                       <input
                         id="llm-api-key"
                         type="password"
-                        placeholder="留空使用内置免费 Key"
+                        placeholder="可选：你的服务需要就填写"
                         value={llmApiKey}
                         onChange={(e) => setLlmApiKey(e.target.value)}
                         className="w-full px-3 py-2 bg-transparent rounded-lg border border-border text-sm text-foreground placeholder-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50 focus:border-primary transition-colors"

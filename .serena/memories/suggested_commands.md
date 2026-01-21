@@ -3,14 +3,9 @@
 ## Development
 ```bash
 npm install          # Install dependencies
-npm run dev          # Start dev server (http://localhost:3000)
+npm run dev          # Start dev server (http://localhost:3045)
 npm run build        # Production build
 npm start            # Start production server
-```
-
-## Docker Deployment
-```bash
-docker compose up -d --build    # Build and run in detached mode
 ```
 
 ## Windows-specific Commands

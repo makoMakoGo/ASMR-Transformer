@@ -25,11 +25,11 @@ app/
 
 ### app/api/polish/route.ts
 - Server-side API route for LLM text polishing
-- Accepts: text, apiUrl, apiKey, model
+- Accepts: text, apiUrl, model (apiKey optional)
 - Calls OpenAI-compatible chat completion endpoint
 - System prompt: 纠错、标点、分段排版，保持原意
 
 ## Configuration
-- Next.js config: `output: 'standalone'` for Docker deployment
+- Next.js config: default output (local Node.js deployment)
 - TypeScript: strict mode, ES2017 target
 - Path alias: `@/*` maps to project root

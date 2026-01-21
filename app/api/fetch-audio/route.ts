@@ -22,7 +22,6 @@ const DEFAULT_ASR_API_URL = 'https://api.siliconflow.cn/v1/audio/transcriptions'
 const DEFAULT_ASR_MODEL = 'TeleAI/TeleSpeechASR'
 const DEFAULT_LLM_API_URL = 'https://juya.owl.ci/v1'
 const DEFAULT_LLM_MODEL = 'DeepSeek-V3.1-Terminus'
-const DEFAULT_LLM_API_KEY = 'sk-kUm2RSHxuRJyjdrzdwprHYFYwvE4NTkIzRoyyaiDoh7YyDIZ'
 const DEFAULT_INSTRUCTIONS =
   '请对以下语音转文字内容进行处理：1. 纠正错别字和语法错误 2. 添加适当的标点符号 3. 分段排版使内容更易读 4. 保持原意不变，不要添加或删除内容'
 
@@ -116,12 +115,13 @@ const polishText = async (
   const userMessage = `${instructions}\n\n---\n\n${text}`
   const fullUrl = `${apiUrl}/chat/completions`
 
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+  const trimmedApiKey = apiKey.trim()
+  if (trimmedApiKey) headers.Authorization = `Bearer ${trimmedApiKey}`
+
   const response = await fetch(fullUrl, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${apiKey}`,
-    },
+    headers,
     body: JSON.stringify({
       model,
       messages: [
@@ -211,7 +211,7 @@ export async function POST(req: NextRequest): Promise<NextResponse<FetchAudioRes
   const asrModel = (body?.asrModel as string) || process.env.ASR_MODEL || DEFAULT_ASR_MODEL
 
   const shouldPolish = body?.polish === true || body?.polish === 'true'
-  const llmApiKey = (body?.llmApiKey as string) || process.env.LLM_API_KEY || DEFAULT_LLM_API_KEY
+  const llmApiKey = (body?.llmApiKey as string) || process.env.LLM_API_KEY || ''
   const llmApiUrl = (body?.llmApiUrl as string) || process.env.LLM_API_URL || DEFAULT_LLM_API_URL
   const llmModel = (body?.llmModel as string) || process.env.LLM_MODEL || DEFAULT_LLM_MODEL
   const customInstructions = (body?.customInstructions as string) || DEFAULT_INSTRUCTIONS

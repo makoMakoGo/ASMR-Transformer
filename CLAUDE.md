@@ -10,7 +10,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **External APIs**:
 - **SiliconFlow ASR**: 语音转文字（TeleAI/TeleSpeechASR 模型，可在硅基流动中文官网免费申请 Key）
-- **内置润色服务**: DeepSeek-V3.1-Terminus 模型，API `https://juya.owl.ci/v1`，仓库默认提供免费不限量 Key
+- **LLM 润色服务**: OpenAI 兼容 API（默认 `https://juya.owl.ci/v1` + DeepSeek-V3.1-Terminus 模型，不再内置免费 Key）
 
 ## Development Commands
 
@@ -20,9 +20,6 @@ npm install          # Install dependencies
 npm run dev          # Start dev server (http://localhost:3045, bind 127.0.0.1)
 npm run build        # Production build (also type checks)
 npm start            # Start production server (http://localhost:3045, bind 127.0.0.1)
-
-# Docker Deployment
-docker compose up -d --build    # Build and run in detached mode
 ```
 
 ## Architecture
@@ -65,7 +62,7 @@ app/
 
 ### State Management
 
-Settings are persisted to localStorage under key `voice-to-text-settings`:
+Settings are persisted to server `.env` via `GET/PUT /api/settings` (WebUI keeps an editable draft and writes to `.env` only when user clicks Save):
 ```typescript
 type Settings = {
   apiKey: string        // ASR API Key
@@ -154,6 +151,5 @@ Example: `✨ feat: 添加SSE流式润色功能`
 
 - **No linting/formatting tools configured** - follow existing code style manually
 - **Windows environment** - use appropriate commands (dir, type, etc.)
-- **API keys in code** - The codebase contains hardcoded fallback API key for demo purposes; avoid committing new secrets
-- **Standalone build** - Next.js configured for Docker deployment with standalone output
-- **localStorage** - Settings persist in browser, works identically in npm dev and Docker
+- **API keys** - 不要在代码里硬编码密钥，使用 `.env` / WebUI 设置写回 `.env`
+- **localStorage** - 仅用于 theme 等 UI 偏好；配置以服务器 `.env` 为准

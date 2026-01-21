@@ -12,7 +12,7 @@ export async function POST(req: NextRequest) {
   try {
     const { text, apiUrl, apiKey, model, customInstructions } = await req.json()
 
-    if (!text || !apiUrl || !apiKey || !model) {
+    if (!text || !apiUrl || !model) {
       return new Response(JSON.stringify({ error: '缺少必要参数' }), {
         status: 400,
         headers: { 'Content-Type': 'application/json' },
@@ -23,12 +23,15 @@ export async function POST(req: NextRequest) {
     const userMessage = `${instructions}\n\n---\n\n${text}`
     const fullUrl = `${apiUrl}/chat/completions`
 
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    }
+    const trimmedApiKey = typeof apiKey === 'string' ? apiKey.trim() : ''
+    if (trimmedApiKey) headers.Authorization = `Bearer ${trimmedApiKey}`
+
     const response = await fetch(fullUrl, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${apiKey}`,
-      },
+      headers,
       body: JSON.stringify({
         model,
         messages: [
