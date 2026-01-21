@@ -111,7 +111,10 @@ export async function POST(request: NextRequest) {
     }
 
     // Determine file size (prefer resolved, then HEAD response)
-    const fileSize = resolvedFileSize || (contentLength ? parseInt(contentLength, 10) : 0)
+    const resolvedSize =
+      typeof resolvedFileSize === 'number' && resolvedFileSize > 0 ? resolvedFileSize : undefined
+    const parsedLength = contentLength ? Number(contentLength) : NaN
+    const fileSize = resolvedSize ?? (Number.isFinite(parsedLength) ? Math.trunc(parsedLength) : 0)
 
     // Validate content type (should be audio)
     const isAudio = contentType.startsWith('audio/') ||

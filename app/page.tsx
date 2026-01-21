@@ -277,31 +277,38 @@ export default function Home() {
       const reader = res.body.getReader()
       const decoder = new TextDecoder()
       let fullContent = ''
+      let buffer = ''
+
+      const handleLine = (rawLine: string) => {
+        const line = rawLine.trimEnd()
+        if (!line.startsWith('data: ')) return
+        const data = line.slice(6)
+        if (data === '[DONE]') return
+
+        try {
+          const parsed = JSON.parse(data)
+          const content = parsed.choices?.[0]?.delta?.content || ''
+          if (content) {
+            fullContent += content
+            setPolishedResult(fullContent)
+          }
+        } catch {
+        }
+      }
 
       while (true) {
         const { done, value } = await reader.read()
         if (done) break
 
-        const chunk = decoder.decode(value, { stream: true })
-        const lines = chunk.split('\n')
+        buffer += decoder.decode(value, { stream: true })
+        const lines = buffer.split('\n')
+        buffer = lines.pop() ?? ''
+        for (const line of lines) handleLine(line)
+      }
 
-        for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            const data = line.slice(6)
-            if (data === '[DONE]') continue
-
-            try {
-              const parsed = JSON.parse(data)
-              const content = parsed.choices?.[0]?.delta?.content || ''
-              if (content) {
-                fullContent += content
-                setPolishedResult(fullContent)
-              }
-            } catch {
-              // 忽略解析错误
-            }
-          }
-        }
+      buffer += decoder.decode()
+      if (buffer) {
+        for (const line of buffer.split('\n')) handleLine(line)
       }
 
       if (fullContent) {
@@ -416,8 +423,8 @@ export default function Home() {
   }
 
   // 下载远程音频（带进度）并转录
-  const importFromUrl = async () => {
-    const url = audioUrlInput.trim()
+  const importFromUrl = async (urlOverride?: string) => {
+    const url = String(urlOverride ?? audioUrlInput).trim()
     if (!url) {
       addLog('请输入音频链接', 'error')
       return
@@ -589,6 +596,7 @@ export default function Home() {
 
       const data = await res.json()
       if (res.ok && data.success) {
+        const resolvedUrl = typeof data.resolvedUrl === 'string' ? data.resolvedUrl : url
         setSelectedFile(null)  // 清空本地文件
         if (fileInputRef.current) fileInputRef.current.value = ''
         setAudioInfo({
@@ -596,7 +604,7 @@ export default function Home() {
           size: data.size,
           type: data.type,
           source: 'remote',
-          url,
+          url: resolvedUrl,
         })
         addLog(`检查通过: ${data.name} (${formatFileSize(data.size)})`, 'success')
       } else {
@@ -624,7 +632,7 @@ export default function Home() {
     if (audioInfo.source === 'local' && selectedFile) {
       transcribe(selectedFile)
     } else if (audioInfo.source === 'remote' && audioInfo.url) {
-      importFromUrl()
+      importFromUrl(audioInfo.url)
     }
   }
 

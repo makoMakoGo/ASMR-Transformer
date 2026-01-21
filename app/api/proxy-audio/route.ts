@@ -12,14 +12,14 @@ const MAX_AUDIO_BYTES =
 /**
  * POST /api/proxy-audio
  *
- * 流式代理音频文件，返回二进制流 + Content-Length
+ * 流式代理音频文件，返回二进制流（源站提供时附带 Content-Length）
  * 前端可以显示下载进度
  *
  * Request body:
  * - url: 音频 URL（支持 AList 播放页面）
  *
  * Response:
- * - 成功：音频二进制流，带 Content-Length, Content-Type, X-File-Name 头
+ * - 成功：音频二进制流，带 Content-Type、X-File-Name 头；源站提供时包含 Content-Length
  * - 失败：JSON 错误信息
  */
 export async function POST(req: NextRequest): Promise<Response> {
@@ -56,6 +56,7 @@ export async function POST(req: NextRequest): Promise<Response> {
 
   // 如果是 AList 播放页面，先解析真实音频 URL
   let fileName = ''
+  let resolvedFileSize: number | undefined
   const isAlistPage = isAlistPageUrl(audioUrl)
   if (!isAlistPage && !isValidAudioUrl(audioUrl)) {
     return NextResponse.json({ error: '音频 URL 无效或不受支持' }, { status: 400 })
@@ -70,12 +71,21 @@ export async function POST(req: NextRequest): Promise<Response> {
       )
       audioUrl = result.rawUrl
       fileName = result.fileName
+      resolvedFileSize = result.fileSize
     } catch (error) {
       return NextResponse.json(
         { error: `解析播放页面失败: ${(error as Error).message}` },
         { status: 400 }
       )
     }
+  }
+
+  if (typeof resolvedFileSize === 'number' && resolvedFileSize > MAX_AUDIO_BYTES) {
+    const maxMB = Math.round(MAX_AUDIO_BYTES / (1024 * 1024))
+    return NextResponse.json(
+      { error: `音频文件过大，超过 ${maxMB}MB 限制` },
+      { status: 413 }
+    )
   }
 
   if (!isValidAudioUrl(audioUrl)) {

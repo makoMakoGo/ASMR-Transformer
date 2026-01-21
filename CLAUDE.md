@@ -43,7 +43,7 @@ lib/
 **app/page.tsx** - Client component with 4-tab layout:
 - **来源 Tab**: 本地文件上传 + 在线链接检查 → 统一音频信息卡片 → 开始转录
 - **结果 Tab**: 原始文本/润色文本子 Tab，支持一键润色和复制
-- **设置 Tab**: ASR 配置、LLM 配置、代理设置
+- **设置 Tab**: ASR 配置、LLM 配置
 - **日志 Tab**: 实时日志，支持按类型筛选（全部/错误/成功/信息）
 
 **lib/alist-utils.ts** - AList 站点支持:
@@ -62,7 +62,7 @@ lib/
 **app/api/proxy-audio/route.ts** - 流式代理在线音频:
 - 支持 AList 播放页面自动解析
 - 流式返回音频二进制数据（不存磁盘，全程内存）
-- 响应头包含 Content-Length（前端可显示下载进度）和 X-File-Name
+- 响应头尽可能包含 Content-Length（源站提供时，前端可显示下载进度）和 X-File-Name
 - 最大文件限制: 100MB（可通过 `FETCH_AUDIO_MAX_BYTES` 环境变量配置）
 
 **app/api/polish/route.ts** - LLM 文本润色:
