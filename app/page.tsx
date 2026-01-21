@@ -61,7 +61,7 @@ const saveSettings = (settings: Settings) => {
 // Clean microphone + document icon for voice-to-text
 function LogoIcon({ className }: { className?: string }) {
   return (
-    <svg className={className} viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <svg className={className} viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
       {/* Document with lines */}
       <rect x="8" y="6" width="24" height="32" rx="2" stroke="currentColor" strokeWidth="2" fill="none" />
       <line x1="14" y1="14" x2="26" y2="14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
@@ -599,14 +599,14 @@ export default function Home() {
         <button
           onClick={toggleTheme}
           className="w-9 h-9 rounded-lg bg-card border border-border hover:bg-muted flex items-center justify-center cursor-pointer transition-colors"
-          title={theme === 'light' ? '切换到暗色模式' : '切换到亮色模式'}
+          aria-label={theme === 'light' ? '切换到暗色模式' : '切换到亮色模式'}
         >
           {theme === 'light' ? (
-            <svg className="w-4 h-4 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <svg className="w-4 h-4 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
             </svg>
           ) : (
-            <svg className="w-4 h-4 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <svg className="w-4 h-4 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
             </svg>
           )}
@@ -627,11 +627,15 @@ export default function Home() {
         <div className="bg-card rounded-xl border border-border shadow-sm overflow-hidden">
           {/* Tab Navigation */}
           <div className="border-b border-border">
-            <div className="flex">
+            <div className="flex" role="tablist" aria-label="主导航">
               {mainTabs.map((tab) => (
                 <button
                   key={tab.id}
                   onClick={() => setCurrentTab(tab.id)}
+                  role="tab"
+                  aria-selected={currentTab === tab.id}
+                  aria-controls={`tabpanel-${tab.id}`}
+                  id={`tab-${tab.id}`}
                   className={`flex-1 px-4 py-3 text-sm font-medium transition-colors cursor-pointer relative ${
                     currentTab === tab.id
                       ? 'text-foreground'
@@ -651,21 +655,25 @@ export default function Home() {
           <div className="p-5">
             {/* Source Tab (来源) */}
             {currentTab === 'source' && (
-              <div className="space-y-5 animate-fade-in">
+              <div role="tabpanel" id="tabpanel-source" aria-labelledby="tab-source" className="space-y-5 animate-fade-in">
                 {/* Upload Zone - Local File */}
                 <div
                   onClick={() => fileInputRef.current?.click()}
-                  className="border-2 border-dashed border-border rounded-lg p-6 text-center hover:border-primary/50 hover:bg-muted/30 transition-colors cursor-pointer"
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fileInputRef.current?.click() } }}
+                  role="button"
+                  tabIndex={0}
+                  className="border-2 border-dashed border-border rounded-lg p-6 text-center hover:border-primary/50 hover:bg-muted/30 transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary"
+                  aria-label="选择音频文件"
                 >
                   <div className="flex flex-col items-center gap-2">
-                    <svg className="w-8 h-8 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <svg className="w-8 h-8 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                     </svg>
                     <p className="text-sm text-foreground">点击选择或拖拽音频文件</p>
                     <p className="text-xs text-muted-foreground">支持 mp3, wav, m4a, flac...</p>
                   </div>
                 </div>
-                <input ref={fileInputRef} type="file" accept="audio/*" onChange={handleFileChange} className="hidden" />
+                <input ref={fileInputRef} type="file" accept="audio/*" onChange={handleFileChange} className="hidden" aria-label="选择音频文件" />
 
                 {/* Divider */}
                 <div className="flex items-center gap-3">
@@ -676,9 +684,10 @@ export default function Home() {
 
                 {/* URL Input Section */}
                 <div className="space-y-2">
-                  <label className="text-xs font-medium text-muted-foreground">在线链接</label>
+                  <label htmlFor="audio-url-input" className="text-xs font-medium text-muted-foreground">在线链接</label>
                   <div className="flex gap-2">
                     <input
+                      id="audio-url-input"
                       type="text"
                       value={audioUrlInput}
                       onChange={(e) => setAudioUrlInput(e.target.value)}
@@ -688,7 +697,7 @@ export default function Home() {
                     <button
                       onClick={checkAudioUrl}
                       disabled={checking || !audioUrlInput.trim()}
-                      className="px-4 py-2 bg-muted text-muted-foreground hover:bg-muted/80 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg text-sm font-medium cursor-pointer transition-colors"
+                      className="px-4 py-2 min-h-[44px] bg-muted text-muted-foreground hover:bg-muted/80 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg text-sm font-medium cursor-pointer transition-colors"
                     >
                       {checking ? '检查中...' : '检查'}
                     </button>
@@ -700,7 +709,7 @@ export default function Home() {
                   <div className="p-3 bg-muted/50 rounded-lg border border-border">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2 min-w-0 flex-1">
-                        <svg className="w-5 h-5 text-primary shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <svg className="w-5 h-5 text-primary shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" />
                         </svg>
                         <span className="text-sm text-foreground font-medium truncate">{audioInfo.name}</span>
@@ -708,9 +717,9 @@ export default function Home() {
                       <button
                         onClick={clearAudio}
                         className="p-1 hover:bg-muted rounded cursor-pointer ml-2"
-                        title="删除"
+                        aria-label="删除所选音频"
                       >
-                        <svg className="w-4 h-4 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <svg className="w-4 h-4 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                         </svg>
                       </button>
@@ -739,14 +748,14 @@ export default function Home() {
 
                 {/* Status Display */}
                 {status !== 'idle' && (
-                  <div className="p-3 bg-muted/50 rounded-lg border border-border">
+                  <div className="p-3 bg-muted/50 rounded-lg border border-border" role="status" aria-live="polite">
                     <div className="flex items-center gap-2 mb-2">
-                      <span className={`w-2 h-2 rounded-full ${statusConfig[status].color} ${['uploading', 'uploaded', 'transcribing', 'fetching-url'].includes(status) ? 'animate-pulse' : ''}`} />
+                      <span className={`w-2 h-2 rounded-full ${statusConfig[status].color} ${['uploading', 'uploaded', 'transcribing', 'fetching-url'].includes(status) ? 'animate-pulse' : ''}`} aria-hidden="true" />
                       <span className="text-sm font-medium text-foreground">{statusConfig[status].text}</span>
                       {status === 'uploading' && <span className="text-xs text-muted-foreground ml-auto">{uploadProgress}%</span>}
                     </div>
                     {status === 'uploading' && (
-                      <div className="w-full h-1 bg-muted rounded-full overflow-hidden">
+                      <div className="w-full h-1 bg-muted rounded-full overflow-hidden" role="progressbar" aria-valuenow={uploadProgress} aria-valuemin={0} aria-valuemax={100}>
                         <div className="h-full bg-primary transition-all duration-300" style={{ width: `${uploadProgress}%` }} />
                       </div>
                     )}
@@ -763,35 +772,45 @@ export default function Home() {
 
             {/* Results Tab */}
             {currentTab === 'results' && (
-              <div className="space-y-4 animate-fade-in">
+              <div role="tabpanel" id="tabpanel-results" aria-labelledby="tab-results" className="space-y-4 animate-fade-in">
                 {/* Sub-tabs: Original / Polished */}
                 <div className="flex items-center gap-4 border-b border-border pb-2">
-                  <button
-                    onClick={() => setResultTab('original')}
-                    className={`text-sm font-medium pb-1 border-b-2 cursor-pointer transition-colors ${
-                      resultTab === 'original'
-                        ? 'border-primary text-foreground'
-                        : 'border-transparent text-muted-foreground hover:text-foreground'
-                    }`}
-                  >
-                    原始文本
-                  </button>
-                  <button
-                    onClick={() => setResultTab('polished')}
-                    className={`text-sm font-medium pb-1 border-b-2 cursor-pointer transition-colors ${
-                      resultTab === 'polished'
-                        ? 'border-primary text-foreground'
-                        : 'border-transparent text-muted-foreground hover:text-foreground'
-                    }`}
-                  >
-                    润色文本
-                  </button>
+                  <div role="tablist" aria-label="结果类型" className="flex items-center gap-4">
+                    <button
+                      onClick={() => setResultTab('original')}
+                      role="tab"
+                      aria-selected={resultTab === 'original'}
+                      aria-controls="result-panel-original"
+                      id="result-tab-original"
+                      className={`text-sm font-medium pb-1 border-b-2 cursor-pointer transition-colors ${
+                        resultTab === 'original'
+                          ? 'border-primary text-foreground'
+                          : 'border-transparent text-muted-foreground hover:text-foreground'
+                      }`}
+                    >
+                      原始文本
+                    </button>
+                    <button
+                      onClick={() => setResultTab('polished')}
+                      role="tab"
+                      aria-selected={resultTab === 'polished'}
+                      aria-controls="result-panel-polished"
+                      id="result-tab-polished"
+                      className={`text-sm font-medium pb-1 border-b-2 cursor-pointer transition-colors ${
+                        resultTab === 'polished'
+                          ? 'border-primary text-foreground'
+                          : 'border-transparent text-muted-foreground hover:text-foreground'
+                      }`}
+                    >
+                      润色文本
+                    </button>
+                  </div>
                   <div className="flex-1" />
                   {result && !result.startsWith('错误') && !result.startsWith('请求失败') && (
                     <button
                       onClick={() => polishText(result)}
                       disabled={polishing}
-                      className="px-3 py-1 bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 rounded-md text-xs font-medium cursor-pointer transition-colors"
+                      className="px-3 py-1 min-h-[36px] bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 rounded-md text-xs font-medium cursor-pointer transition-colors"
                     >
                       {polishing ? '润色中...' : '润色'}
                     </button>
@@ -799,7 +818,7 @@ export default function Home() {
                   {(resultTab === 'original' ? result : polishedResult) && (
                     <button
                       onClick={resultTab === 'original' ? handleCopy : handleCopyPolished}
-                      className={`px-3 py-1 rounded-md text-xs font-medium cursor-pointer transition-colors ${
+                      className={`px-3 py-1 min-h-[36px] rounded-md text-xs font-medium cursor-pointer transition-colors ${
                         (resultTab === 'original' ? copied : copiedPolished)
                           ? 'bg-emerald-600 text-white'
                           : 'bg-muted text-muted-foreground hover:bg-muted/80'
@@ -811,7 +830,12 @@ export default function Home() {
                 </div>
 
                 {/* Result Content */}
-                <div className="min-h-[200px] p-4 bg-muted/30 rounded-lg border border-border text-sm text-foreground whitespace-pre-wrap leading-relaxed">
+                <div
+                  role="tabpanel"
+                  id={`result-panel-${resultTab}`}
+                  aria-labelledby={`result-tab-${resultTab}`}
+                  className="min-h-[200px] p-4 bg-muted/30 rounded-lg border border-border text-sm text-foreground whitespace-pre-wrap leading-relaxed"
+                >
                   {resultTab === 'original' ? (
                     result || <span className="text-muted-foreground">暂无转录结果...</span>
                   ) : polishing ? (
@@ -839,15 +863,16 @@ export default function Home() {
 
             {/* Settings Tab */}
             {currentTab === 'settings' && (
-              <div className="space-y-5 animate-fade-in">
+              <div role="tabpanel" id="tabpanel-settings" aria-labelledby="tab-settings" className="space-y-5 animate-fade-in">
                 {/* ASR Config */}
                 <div>
-                  <h3 className="text-sm font-medium text-foreground mb-1">语音识别配置</h3>
+                  <h2 className="text-sm font-medium text-foreground mb-1">语音识别配置</h2>
                   <p className="text-xs text-muted-foreground mb-3">ASR API Settings</p>
                   <div className="space-y-3">
                     <div>
-                      <label className="block text-xs font-medium text-muted-foreground mb-1">API Key</label>
+                      <label htmlFor="asr-api-key" className="block text-xs font-medium text-muted-foreground mb-1">API Key</label>
                       <input
+                        id="asr-api-key"
                         type="password"
                         placeholder="硅基流动 API Key（必填）"
                         value={apiKey}
@@ -857,8 +882,9 @@ export default function Home() {
                     </div>
                     <div className="grid grid-cols-2 gap-3">
                       <div>
-                        <label className="block text-xs font-medium text-muted-foreground mb-1">API URL</label>
+                        <label htmlFor="asr-api-url" className="block text-xs font-medium text-muted-foreground mb-1">API URL</label>
                         <input
+                          id="asr-api-url"
                           type="text"
                           value={apiUrl}
                           onChange={(e) => setApiUrl(e.target.value)}
@@ -866,8 +892,9 @@ export default function Home() {
                         />
                       </div>
                       <div>
-                        <label className="block text-xs font-medium text-muted-foreground mb-1">模型</label>
+                        <label htmlFor="asr-model" className="block text-xs font-medium text-muted-foreground mb-1">模型</label>
                         <input
+                          id="asr-model"
                           type="text"
                           value={model}
                           onChange={(e) => setModel(e.target.value)}
@@ -880,12 +907,13 @@ export default function Home() {
 
                 {/* LLM Config */}
                 <div>
-                  <h3 className="text-sm font-medium text-foreground mb-1">文本润色配置</h3>
+                  <h2 className="text-sm font-medium text-foreground mb-1">文本润色配置</h2>
                   <p className="text-xs text-muted-foreground mb-3">LLM · 内置免费服务</p>
                   <div className="space-y-3">
                     <div>
-                      <label className="block text-xs font-medium text-muted-foreground mb-1">API Key（可选）</label>
+                      <label htmlFor="llm-api-key" className="block text-xs font-medium text-muted-foreground mb-1">API Key（可选）</label>
                       <input
+                        id="llm-api-key"
                         type="password"
                         placeholder="留空使用内置免费 Key"
                         value={llmApiKey}
@@ -895,8 +923,9 @@ export default function Home() {
                     </div>
                     <div className="grid grid-cols-2 gap-3">
                       <div>
-                        <label className="block text-xs font-medium text-muted-foreground mb-1">API URL</label>
+                        <label htmlFor="llm-api-url" className="block text-xs font-medium text-muted-foreground mb-1">API URL</label>
                         <input
+                          id="llm-api-url"
                           type="text"
                           value={llmApiUrl}
                           onChange={(e) => setLlmApiUrl(e.target.value)}
@@ -904,8 +933,9 @@ export default function Home() {
                         />
                       </div>
                       <div>
-                        <label className="block text-xs font-medium text-muted-foreground mb-1">模型</label>
+                        <label htmlFor="llm-model" className="block text-xs font-medium text-muted-foreground mb-1">模型</label>
                         <input
+                          id="llm-model"
                           type="text"
                           value={llmModel}
                           onChange={(e) => setLlmModel(e.target.value)}
@@ -915,15 +945,17 @@ export default function Home() {
                     </div>
                     <div>
                       <div className="flex items-center justify-between mb-1">
-                        <label className="block text-xs font-medium text-muted-foreground">润色指令</label>
+                        <label htmlFor="custom-instructions" className="block text-xs font-medium text-muted-foreground">润色指令</label>
                         <button
                           onClick={() => setCustomInstructions(DEFAULT_INSTRUCTIONS)}
                           className="text-xs text-primary hover:text-primary/80 font-medium cursor-pointer transition-colors"
+                          aria-label="恢复默认润色指令"
                         >
                           恢复默认
                         </button>
                       </div>
                       <textarea
+                        id="custom-instructions"
                         placeholder="自定义润色指令..."
                         value={customInstructions}
                         onChange={(e) => setCustomInstructions(e.target.value)}
@@ -936,11 +968,12 @@ export default function Home() {
 
                 {/* Proxy Config */}
                 <div>
-                  <h3 className="text-sm font-medium text-foreground mb-1">网络代理</h3>
+                  <h2 className="text-sm font-medium text-foreground mb-1">网络代理</h2>
                   <p className="text-xs text-muted-foreground mb-3">留空则直连</p>
                   <div>
-                    <label className="block text-xs font-medium text-muted-foreground mb-1">代理地址</label>
+                    <label htmlFor="proxy-url" className="block text-xs font-medium text-muted-foreground mb-1">代理地址</label>
                     <input
+                      id="proxy-url"
                       type="text"
                       placeholder="http://127.0.0.1:7890"
                       value={proxyUrl}
@@ -954,14 +987,15 @@ export default function Home() {
 
             {/* Logs Tab */}
             {currentTab === 'logs' && (
-              <div className="space-y-4 animate-fade-in">
+              <div role="tabpanel" id="tabpanel-logs" aria-labelledby="tab-logs" className="space-y-4 animate-fade-in">
                 {/* Filter chips */}
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2" role="group" aria-label="日志筛选">
                   {(['all', 'error', 'success', 'info'] as const).map((filter) => (
                     <button
                       key={filter}
                       onClick={() => setLogFilter(filter)}
-                      className={`px-3 py-1 rounded-full text-xs font-medium cursor-pointer transition-colors ${
+                      aria-pressed={logFilter === filter}
+                      className={`px-3 py-1 min-h-[32px] rounded-full text-xs font-medium cursor-pointer transition-colors ${
                         logFilter === filter
                           ? 'bg-foreground text-background'
                           : 'bg-muted text-muted-foreground hover:bg-muted/80'
@@ -974,6 +1008,7 @@ export default function Home() {
                   <button
                     onClick={clearLogs}
                     className="text-xs text-muted-foreground hover:text-foreground cursor-pointer transition-colors"
+                    aria-label="清空日志"
                   >
                     清空
                   </button>
