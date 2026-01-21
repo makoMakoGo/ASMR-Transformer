@@ -8,6 +8,7 @@ const DEFAULT_ASR_API_URL = 'https://api.siliconflow.cn/v1/audio/transcriptions'
 const DEFAULT_ASR_MODEL = 'TeleAI/TeleSpeechASR'
 const DEFAULT_LLM_API_URL = 'https://juya.owl.ci/v1'
 const DEFAULT_LLM_MODEL = 'DeepSeek-V3.1-Terminus'
+const DEFAULT_FETCH_AUDIO_MAX_BYTES = 100 * 1024 * 1024
 const DEFAULT_INSTRUCTIONS =
   '请对以下语音转文字内容进行处理：1. 纠正错别字和语法错误 2. 添加适当的标点符号 3. 分段排版使内容更易读 4. 保持原意不变，不要添加或删除内容'
 
@@ -186,6 +187,7 @@ export default function Home() {
   const [logFilter, setLogFilter] = useState<'all' | 'error' | 'success' | 'info'>('all')
   const [audioInfo, setAudioInfo] = useState<AudioInfo | null>(null)
   const [checking, setChecking] = useState(false)
+  const [fetchAudioMaxBytes, setFetchAudioMaxBytes] = useState(DEFAULT_FETCH_AUDIO_MAX_BYTES)
   const [theme, setTheme] = useState<'light' | 'dark'>('light')
 
   useEffect(() => {
@@ -194,6 +196,22 @@ export default function Home() {
     const initial = stored || (prefersDark ? 'dark' : 'light')
     setTheme(initial)
     document.documentElement.classList.toggle('dark', initial === 'dark')
+  }, [])
+
+  useEffect(() => {
+    const loadRuntimeConfig = async () => {
+      try {
+        const res = await fetch('/api/runtime-config', { method: 'GET' })
+        const data = await res.json().catch(() => ({}))
+        const maxBytes = Number((data as { fetchAudioMaxBytes?: unknown })?.fetchAudioMaxBytes)
+        if (res.ok && Number.isFinite(maxBytes) && maxBytes > 0) {
+          setFetchAudioMaxBytes(Math.trunc(maxBytes))
+        }
+      } catch {
+        // ignore
+      }
+    }
+    loadRuntimeConfig()
   }, [])
 
   const toggleTheme = () => {
@@ -484,7 +502,7 @@ export default function Home() {
       const fileNameHeader = proxyRes.headers.get('x-file-name')
       const fileName = fileNameHeader ? decodeURIComponent(fileNameHeader) : '在线音频.mp3'
       const mimeType = proxyRes.headers.get('content-type') || 'audio/mpeg'
-      const CLIENT_MAX_SIZE_BYTES = 100 * 1024 * 1024
+      const CLIENT_MAX_SIZE_BYTES = fetchAudioMaxBytes
 
       if (totalSize > 0 && totalSize > CLIENT_MAX_SIZE_BYTES) {
         throw new Error(

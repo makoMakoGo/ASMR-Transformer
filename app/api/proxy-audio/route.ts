@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { isAlistPageUrl, resolveAlistUrl } from '@/lib/alist-utils'
+import { getFetchAudioMaxBytes } from '@/lib/runtime-config'
 import { getAudioMimeType, isAllowedAudioHost, isPrivateHost, isValidAudioUrl } from '@/lib/url-utils'
 
 export const runtime = 'nodejs'
 
 const DEFAULT_USER_AGENT = 'Mozilla/5.0 (ASMR-Transformer/1.0)'
 const FETCH_TIMEOUT_MS = 120_000 // 2 minutes for initial connection
-const MAX_AUDIO_BYTES =
-  Number(process.env.FETCH_AUDIO_MAX_BYTES || 100 * 1024 * 1024) || 100 * 1024 * 1024
+const MAX_AUDIO_BYTES = getFetchAudioMaxBytes()
 
 /**
  * POST /api/proxy-audio
