@@ -19,7 +19,7 @@ jobs:
           echo "🔍 检查 PR 中的提交信息..."
           
           # 获取 PR 中的所有提交
-          commits=$(git log --format="%s" origin/${{ github.base_ref }}..${{ github.head_ref }} 2>/dev/null || git log --format="%s" -n 20)
+          commits=$(git log --format="%s" "origin/${{ github.base_ref }}..origin/${{ github.head_ref }}" 2>/dev/null || git log --format="%s" -n 20)
           
           # 有效的 type 列表
           valid_types="init|release|style|feat|fix|docs|refactor|perf|dx|workflow|types|wip|test|build|ci|chore|deps"
