@@ -76,6 +76,7 @@ export default function Home() {
   const [savingSettings, setSavingSettings] = useState(false)
   const [envSaveError, setEnvSaveError] = useState('')
   const [settingsLoadError, setSettingsLoadError] = useState('')
+  const settingsInitRef = useRef(false)
 
   const currentSettings: Settings = { apiKey, apiUrl, model, llmApiUrl, llmModel, llmApiKey, customInstructions, proxyUrl }
   const isDirty = !!savedSettingsRef.current && !areSettingsEqual(savedSettingsRef.current, currentSettings)
@@ -154,6 +155,8 @@ export default function Home() {
   }
 
   useEffect(() => {
+    if (settingsInitRef.current) return
+    settingsInitRef.current = true
     const loadSettings = async () => {
       await reloadSettingsFromEnv(true)
       if (!savedSettingsRef.current) {
@@ -163,7 +166,7 @@ export default function Home() {
       setSettingsLoaded(true)
     }
     loadSettings()
-  }, [])
+  }, [reloadSettingsFromEnv, currentSettings])
 
   useEffect(() => {
     if (!envSaveError) return
@@ -172,7 +175,6 @@ export default function Home() {
 
   const [result, setResult] = useState('')
   const [polishedResult, setPolishedResult] = useState('')
-  const [resultTab, setResultTab] = useState<'original' | 'polished'>('original')
   const [loading, setLoading] = useState(false)
   const [polishing, setPolishing] = useState(false)
 
@@ -481,6 +483,13 @@ export default function Home() {
       const fileNameHeader = proxyRes.headers.get('x-file-name')
       const fileName = fileNameHeader ? decodeURIComponent(fileNameHeader) : '在线音频.mp3'
       const mimeType = proxyRes.headers.get('content-type') || 'audio/mpeg'
+      const CLIENT_MAX_SIZE_BYTES = 50 * 1024 * 1024
+
+      if (totalSize > 0 && totalSize > CLIENT_MAX_SIZE_BYTES) {
+        throw new Error(
+          `文件过大 (${formatFileSize(totalSize)})，为避免浏览器崩溃已中止。最大支持 ${formatFileSize(CLIENT_MAX_SIZE_BYTES)}。`
+        )
+      }
 
       addLog(`开始下载: ${fileName} (${totalSize ? formatFileSize(totalSize) : '未知大小'})`, 'info')
       setStatusMessage(`正在下载 ${fileName}...`)
@@ -491,15 +500,22 @@ export default function Home() {
         throw new Error('无法读取音频数据流')
       }
 
-      const chunks: Uint8Array[] = []
+      const chunks: ArrayBuffer[] = []
       let receivedLength = 0
 
       while (true) {
         const { done, value } = await reader.read()
         if (done) break
+        if (!value) continue
 
-        chunks.push(value)
-        receivedLength += value.length
+        chunks.push(value.buffer.slice(value.byteOffset, value.byteOffset + value.byteLength))
+        receivedLength += value.byteLength
+        if (receivedLength > CLIENT_MAX_SIZE_BYTES) {
+          await reader.cancel()
+          throw new Error(
+            `文件过大 (${formatFileSize(receivedLength)})，为避免浏览器崩溃已中止。最大支持 ${formatFileSize(CLIENT_MAX_SIZE_BYTES)}。`
+          )
+        }
 
         // 更新下载进度
         if (totalSize > 0) {
@@ -619,6 +635,8 @@ export default function Home() {
   }
 
   const canTranscribe = audioInfo && apiKey && !loading
+  const showIndeterminateProgress =
+    (status === 'processing' && uploadProgress === 0) || status === 'transcribing'
 
   const handleCopy = async () => {
     try {
@@ -847,7 +865,7 @@ export default function Home() {
                         <div className="h-full bg-primary transition-all duration-300" style={{ width: `${uploadProgress}%` }} />
                       </div>
                     )}
-                    {(status === 'processing' && uploadProgress === 0) || status === 'transcribing' ? (
+                    {showIndeterminateProgress ? (
                       <div className="w-full h-1 bg-muted rounded-full overflow-hidden">
                         <div className="h-full bg-primary/60 animate-pulse w-full" />
                       </div>

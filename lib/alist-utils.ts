@@ -1,6 +1,6 @@
 /**
  * AList 站点检测和 URL 解析工具
- * 供 check-audio 和 fetch-audio API 共享使用
+ * 供 check-audio 和 proxy-audio API 共享使用
  */
 
 // AList 站点配置（支持自动解析播放页面）
@@ -17,15 +17,16 @@ export const ALIST_SITES = [
   'www.asmr.stream',
 ]
 
+const isAlistHost = (hostname: string): boolean =>
+  ALIST_SITES.some((h) => hostname === h || hostname.endsWith(`.${h}`))
+
 /**
  * 检测 URL 是否属于已知的 AList 站点
  */
 export const isAlistSite = (url: string): boolean => {
   try {
     const parsed = new URL(url)
-    return ALIST_SITES.some(
-      (h) => parsed.hostname === h || parsed.hostname.endsWith(`.${h}`)
-    )
+    return isAlistHost(parsed.hostname)
   } catch {
     return false
   }
@@ -38,11 +39,9 @@ export const isAlistSite = (url: string): boolean => {
 export const isAlistPageUrl = (url: string): boolean => {
   try {
     const parsed = new URL(url)
-    const isSite = ALIST_SITES.some(
-      (h) => parsed.hostname === h || parsed.hostname.endsWith(`.${h}`)
-    )
+    if (!isAlistHost(parsed.hostname)) return false
     // 播放页面路径不以 /d/ 开头
-    return isSite && !parsed.pathname.startsWith('/d/')
+    return !parsed.pathname.startsWith('/d/')
   } catch {
     return false
   }
@@ -54,10 +53,8 @@ export const isAlistPageUrl = (url: string): boolean => {
 export const isAlistDirectUrl = (url: string): boolean => {
   try {
     const parsed = new URL(url)
-    const isSite = ALIST_SITES.some(
-      (h) => parsed.hostname === h || parsed.hostname.endsWith(`.${h}`)
-    )
-    return isSite && parsed.pathname.startsWith('/d/')
+    if (!isAlistHost(parsed.hostname)) return false
+    return parsed.pathname.startsWith('/d/')
   } catch {
     return false
   }
@@ -70,6 +67,8 @@ export type AlistResolveResult = {
   contentType: string
 }
 
+export type AlistFetchFn = (url: string, init?: RequestInit) => Promise<Response>
+
 /**
  * 调用 AList API 获取真实音频 URL 和元信息
  * @param pageUrl AList 播放页面 URL
@@ -78,7 +77,7 @@ export type AlistResolveResult = {
  */
 export const resolveAlistUrl = async (
   pageUrl: string,
-  fetchFn: typeof fetch = fetch,
+  fetchFn: AlistFetchFn = fetch,
   userAgent = 'Mozilla/5.0 (ASMR-Transformer/1.0)'
 ): Promise<AlistResolveResult> => {
   const parsed = new URL(pageUrl)

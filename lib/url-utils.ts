@@ -33,6 +33,45 @@ const MIME_TO_EXTENSION: Record<string, string> = Object.entries(MIME_MAP).reduc
 
 export const allowedAudioExtensions = AUDIO_EXTENSIONS
 
+const parseIpv4 = (host: string): [number, number, number, number] | null => {
+  if (!/^\d{1,3}(\.\d{1,3}){3}$/.test(host)) return null
+  const parts = host.split('.').map((p) => Number(p))
+  if (parts.length !== 4) return null
+  if (parts.some((n) => !Number.isInteger(n) || n < 0 || n > 255)) return null
+  return parts as [number, number, number, number]
+}
+
+export const isPrivateHost = (host: string): boolean => {
+  const h = host.trim().toLowerCase()
+  if (!h) return true
+
+  if (h === 'localhost' || h.endsWith('.localhost')) return true
+
+  const ipv4 = parseIpv4(h)
+  if (ipv4) {
+    const [a, b] = ipv4
+    if (a === 127) return true
+    if (a === 10) return true
+    if (a === 0) return true
+    if (a === 169 && b === 254) return true
+    if (a === 172 && b >= 16 && b <= 31) return true
+    if (a === 192 && b === 168) return true
+    return false
+  }
+
+  if (!h.includes(':')) return false
+
+  if (h === '::1' || h === '0:0:0:0:0:0:0:1') return true
+  if (h.startsWith('fe80:')) return true
+  if (h.startsWith('fc') || h.startsWith('fd')) return true
+  if (h.startsWith('::ffff:')) {
+    const mapped = h.slice('::ffff:'.length)
+    return isPrivateHost(mapped)
+  }
+
+  return false
+}
+
 const getUrlObject = (input: string): URL | null => {
   if (!input || typeof input !== 'string') return null
   try {

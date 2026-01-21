@@ -1,10 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { HttpsProxyAgent } from 'https-proxy-agent'
 import { isAlistPageUrl, resolveAlistUrl } from '@/lib/alist-utils'
+import { fetchWithProxy } from '@/lib/fetch-utils'
+import { isPrivateHost } from '@/lib/url-utils'
 
 export async function POST(request: NextRequest) {
   try {
-    const { url, proxyUrl } = await request.json()
+    const body = (await request.json()) as Record<string, unknown>
+    const url = String(body?.url || '').trim()
+    const proxyUrl = String(body?.proxyUrl || '').trim()
+    const allowPrivateHosts = process.env.ALLOW_PRIVATE_HOSTS === '1'
 
     if (!url) {
       return NextResponse.json({ success: false, error: '缺少 URL 参数' }, { status: 400 })
@@ -16,6 +20,9 @@ export async function POST(request: NextRequest) {
       parsedUrl = new URL(url)
       if (!['http:', 'https:'].includes(parsedUrl.protocol)) {
         return NextResponse.json({ success: false, error: '仅支持 http/https 链接' }, { status: 400 })
+      }
+      if (!allowPrivateHosts && isPrivateHost(parsedUrl.hostname)) {
+        return NextResponse.json({ success: false, error: '不支持访问本机或内网地址' }, { status: 400 })
       }
     } catch {
       return NextResponse.json({ success: false, error: '无效的 URL' }, { status: 400 })
@@ -29,16 +36,10 @@ export async function POST(request: NextRequest) {
 
     if (isAlistPageUrl(url)) {
       try {
-        // 创建支持代理的 fetch 函数
-        const fetchWithProxy = async (fetchUrl: string, init?: RequestInit): Promise<Response> => {
-          if (proxyUrl) {
-            const agent = new HttpsProxyAgent(proxyUrl)
-            return fetch(fetchUrl, { ...init, agent } as RequestInit & { agent: unknown })
-          }
-          return fetch(fetchUrl, init)
-        }
+        const fetchFn = (fetchUrl: string, init?: RequestInit) =>
+          fetchWithProxy(fetchUrl, init, proxyUrl || undefined)
 
-        const resolved = await resolveAlistUrl(url, fetchWithProxy)
+        const resolved = await resolveAlistUrl(url, fetchFn)
         actualUrl = resolved.rawUrl
         resolvedFileName = resolved.fileName
         resolvedFileSize = resolved.fileSize
@@ -50,19 +51,22 @@ export async function POST(request: NextRequest) {
     }
 
     // Setup fetch options for HEAD request
-    const fetchOptions: RequestInit & { agent?: unknown } = {
+    const fetchOptions: RequestInit = {
       method: 'HEAD',
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
       },
     }
 
-    if (proxyUrl) {
-      fetchOptions.agent = new HttpsProxyAgent(proxyUrl)
+    if (!allowPrivateHosts) {
+      const actualUrlObj = new URL(actualUrl)
+      if (isPrivateHost(actualUrlObj.hostname)) {
+        return NextResponse.json({ success: false, error: '不支持访问本机或内网地址' }, { status: 400 })
+      }
     }
 
     // Make HEAD request to actual URL
-    const response = await fetch(actualUrl, fetchOptions)
+    const response = await fetchWithProxy(actualUrl, fetchOptions, proxyUrl || undefined)
 
     if (!response.ok) {
       return NextResponse.json(

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { ProxyAgent, fetch as undiciFetch } from 'undici'
 import { isAlistPageUrl, resolveAlistUrl } from '@/lib/alist-utils'
-import { isValidAudioUrl, getAudioMimeType } from '@/lib/url-utils'
+import { fetchWithProxy } from '@/lib/fetch-utils'
+import { getAudioMimeType, isPrivateHost, isValidAudioUrl } from '@/lib/url-utils'
 
 export const runtime = 'nodejs'
 
@@ -9,15 +9,6 @@ const DEFAULT_USER_AGENT = 'Mozilla/5.0 (ASMR-Transformer/1.0)'
 const FETCH_TIMEOUT_MS = 120_000 // 2 minutes for initial connection
 const MAX_AUDIO_BYTES =
   Number(process.env.FETCH_AUDIO_MAX_BYTES || 100 * 1024 * 1024) || 100 * 1024 * 1024
-
-// 封装 fetch，支持可选代理
-const fetchWithProxy = async (url: string, init?: RequestInit, proxyUrl?: string): Promise<Response> => {
-  if (proxyUrl) {
-    const agent = new ProxyAgent(proxyUrl)
-    return undiciFetch(url, { ...init, dispatcher: agent } as Parameters<typeof undiciFetch>[1]) as unknown as Response
-  }
-  return fetch(url, init)
-}
 
 /**
  * POST /api/proxy-audio
@@ -46,13 +37,15 @@ export async function POST(req: NextRequest): Promise<Response> {
     return NextResponse.json({ error: '缺少音频 URL' }, { status: 400 })
   }
 
-  const proxyUrl = (body?.proxyUrl as string) || ''
+  const proxyUrl = String(body?.proxyUrl || '').trim()
+  const allowPrivateHosts = process.env.ALLOW_PRIVATE_HOSTS === '1'
 
   // 如果是 AList 播放页面，先解析真实音频 URL
   let fileName = ''
   if (isAlistPageUrl(audioUrl)) {
     try {
-      const fetchFn = (url: string, init?: RequestInit) => fetchWithProxy(url, init, proxyUrl)
+      const fetchFn = (fetchUrl: string, init?: RequestInit) =>
+        fetchWithProxy(fetchUrl, init, proxyUrl || undefined)
       const result = await resolveAlistUrl(audioUrl, fetchFn, DEFAULT_USER_AGENT)
       audioUrl = result.rawUrl
       fileName = result.fileName
@@ -68,10 +61,14 @@ export async function POST(req: NextRequest): Promise<Response> {
     return NextResponse.json({ error: '音频 URL 无效或不受支持' }, { status: 400 })
   }
 
+  const urlObj = new URL(audioUrl)
+  if (!allowPrivateHosts && isPrivateHost(urlObj.hostname)) {
+    return NextResponse.json({ error: '不支持访问本机或内网地址' }, { status: 400 })
+  }
+
   // 从 URL 提取文件名（如果还没有）
   if (!fileName) {
     try {
-      const urlObj = new URL(audioUrl)
       const pathParts = urlObj.pathname.split('/')
       fileName = decodeURIComponent(pathParts[pathParts.length - 1] || 'audio')
     } catch {
@@ -79,20 +76,20 @@ export async function POST(req: NextRequest): Promise<Response> {
     }
   }
 
-  const controller = new AbortController()
-  const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS)
+  const abortController = new AbortController()
+  const timeoutId = setTimeout(() => abortController.abort(), FETCH_TIMEOUT_MS)
 
   let audioResponse: Response
   try {
     audioResponse = await fetchWithProxy(audioUrl, {
       method: 'GET',
       redirect: 'follow',
-      signal: controller.signal,
+      signal: abortController.signal,
       headers: {
         'User-Agent': DEFAULT_USER_AGENT,
-        Referer: new URL(audioUrl).origin,
+        Referer: urlObj.origin,
       },
-    }, proxyUrl)
+    }, proxyUrl || undefined)
   } catch (error) {
     clearTimeout(timeoutId)
     if ((error as Error).name === 'AbortError') {
@@ -159,8 +156,22 @@ export async function POST(req: NextRequest): Promise<Response> {
     headers.set('Content-Length', contentLength)
   }
 
-  // 直接流式返回音频数据
-  return new Response(audioResponse.body, {
+  let bytesRead = 0
+  const limitedStream = audioResponse.body.pipeThrough(
+    new TransformStream<Uint8Array, Uint8Array>({
+      transform(chunk, controller) {
+        bytesRead += chunk.byteLength
+        if (bytesRead > MAX_AUDIO_BYTES) {
+          abortController.abort()
+          controller.error(new Error('MAX_AUDIO_BYTES_EXCEEDED'))
+          return
+        }
+        controller.enqueue(chunk)
+      },
+    })
+  )
+
+  return new Response(limitedStream, {
     status: 200,
     headers,
   })
