@@ -88,11 +88,21 @@ export async function POST(req: NextRequest): Promise<Response> {
     )
   }
 
-  if (!isValidAudioUrl(audioUrl)) {
+  let urlObj: URL
+  try {
+    urlObj = new URL(audioUrl)
+  } catch {
     return NextResponse.json({ error: '音频 URL 无效或不受支持' }, { status: 400 })
   }
 
-  const urlObj = new URL(audioUrl)
+  if (!['http:', 'https:'].includes(urlObj.protocol)) {
+    return NextResponse.json({ error: '音频 URL 无效或不受支持' }, { status: 400 })
+  }
+
+  if (!isAllowedAudioHost(urlObj.hostname)) {
+    return NextResponse.json({ error: '音频 URL 无效或不受支持' }, { status: 400 })
+  }
+
   if (isPrivateHost(urlObj.hostname)) {
     return NextResponse.json({ error: '不支持访问本机或内网地址' }, { status: 400 })
   }

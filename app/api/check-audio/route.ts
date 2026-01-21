@@ -3,8 +3,14 @@ import { isAlistPageUrl, resolveAlistUrl } from '@/lib/alist-utils'
 import { isAllowedAudioHost, isPrivateHost, isValidAudioUrl } from '@/lib/url-utils'
 
 export async function POST(request: NextRequest) {
+  let body: Record<string, unknown>
   try {
-    const body = (await request.json()) as Record<string, unknown>
+    body = (await request.json()) as Record<string, unknown>
+  } catch {
+    return NextResponse.json({ success: false, error: '请求体必须为 JSON' }, { status: 400 })
+  }
+
+  try {
     const url = String(body?.url || '').trim()
 
     if (!url) {
@@ -63,12 +69,26 @@ export async function POST(request: NextRequest) {
       },
     }
 
-    const actualUrlObj = new URL(actualUrl)
+    let actualUrlObj: URL
+    try {
+      actualUrlObj = new URL(actualUrl)
+    } catch {
+      return NextResponse.json({ success: false, error: '音频 URL 无效或不受支持' }, { status: 400 })
+    }
+
+    if (!['http:', 'https:'].includes(actualUrlObj.protocol)) {
+      return NextResponse.json({ success: false, error: '音频 URL 无效或不受支持' }, { status: 400 })
+    }
+
     if (isPrivateHost(actualUrlObj.hostname)) {
       return NextResponse.json({ success: false, error: '不支持访问本机或内网地址' }, { status: 400 })
     }
 
-    if (!isValidAudioUrl(actualUrl)) {
+    if (!isAllowedAudioHost(actualUrlObj.hostname)) {
+      return NextResponse.json({ success: false, error: '音频 URL 无效或不受支持' }, { status: 400 })
+    }
+
+    if (!isAlistPage && !isValidAudioUrl(actualUrl)) {
       return NextResponse.json({ success: false, error: '音频 URL 无效或不受支持' }, { status: 400 })
     }
 

@@ -48,8 +48,8 @@ lib/
 - **日志 Tab**: 实时日志，支持按类型筛选（全部/错误/成功/信息）
 
 **lib/alist-utils.ts** - AList 站点支持:
-- 支持的站点: asmrgay.com, asmr.pw, asmr.loan, asmr.party, asmr.stream
-- AList 解析后的真实下载域名可能为: asmr.121231234.xyz
+- 支持的站点（播放页来源）: asmrgay.com / asmr.pw / asmr.loan / asmr.party / asmr.stream（均允许子域）
+- AList 解析后的真实下载域名可能为: asmr.121231234.xyz（仅该 host，不允许子域）
 - `isAlistPageUrl()` - 检测播放页面 URL（非 /d/ 路径）
 - `resolveAlistUrl()` - 调用 AList `/api/fs/get` 获取真实音频 URL
 
