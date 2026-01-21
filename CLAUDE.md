@@ -28,12 +28,14 @@ npm start            # Start production server (http://localhost:3045, bind 127.
 ```
 app/
 ├── api/polish/route.ts        # LLM 文本润色（SSE 流式）
-├── api/fetch-audio/route.ts   # 在线链接导入并转录（服务端拉取音频）
-├── api/check-audio/route.ts   # 检查在线音频元信息（HEAD 请求获取文件名/大小/类型）
-├── api/download-audio/route.ts # 下载在线音频到本地（写入 ./audio，已弃用）
+├── api/proxy-audio/route.ts   # 流式代理在线音频（返回二进制流，前端显示下载进度）
+├── api/check-audio/route.ts   # 检查在线音频元信息（支持 AList 播放页面解析）
 ├── globals.css            # 暖奶油色设计系统（CSS 变量、动画）
 ├── layout.tsx             # Root layout with metadata
 └── page.tsx               # Main UI (4-Tab 布局：来源/结果/设置/日志)
+lib/
+├── alist-utils.ts         # AList 站点检测和 URL 解析（共享工具）
+└── url-utils.ts           # URL 处理工具函数
 ```
 
 ### Key Components
@@ -44,10 +46,23 @@ app/
 - **设置 Tab**: ASR 配置、LLM 配置、代理设置
 - **日志 Tab**: 实时日志，支持按类型筛选（全部/错误/成功/信息）
 
+**lib/alist-utils.ts** - AList 站点支持:
+- 支持的站点: asmrgay.com, asmr.pw, asmr.loan, asmr.party, asmr.stream 及其备用域名
+- `isAlistPageUrl()` - 检测播放页面 URL（非 /d/ 路径）
+- `resolveAlistUrl()` - 调用 AList `/api/fs/get` 获取真实音频 URL
+
 **app/api/check-audio/route.ts** - 检查在线音频:
+- 支持 AList 播放页面自动解析（调用 AList API 获取真实 URL）
 - HEAD 请求获取 content-length, content-type
 - 从 URL 或 content-disposition 提取文件名
 - 验证是否为音频文件
+- 返回 `resolvedUrl` 字段（如果进行了 AList 解析）
+
+**app/api/proxy-audio/route.ts** - 流式代理在线音频:
+- 支持 AList 播放页面自动解析
+- 流式返回音频二进制数据（不存磁盘，全程内存）
+- 响应头包含 Content-Length（前端可显示下载进度）和 X-File-Name
+- 最大文件限制: 100MB（可通过 `FETCH_AUDIO_MAX_BYTES` 环境变量配置）
 
 **app/api/polish/route.ts** - LLM 文本润色:
 - Proxies requests to LLM API (OpenAI-compatible chat completion)
@@ -89,14 +104,12 @@ type AudioInfo = {
 
 ### Status Flow
 
-The transcription process has granular status tracking:
+The transcription process has unified status tracking (same for local and remote):
 1. `idle` → 准备就绪
-2. `uploading` → 上传中（显示进度百分比）
-3. `uploaded` → 已上传（等待服务器响应）
-4. `fetching-url` → 拉取链接（服务端获取远程音频）
-5. `transcribing` → 识别中（服务器处理）
-6. `done` → 已完成
-7. `error` → 出错了
+2. `processing` → 处理中（本地=上传到 ASR API，远程=服务端拉取音频）
+3. `transcribing` → 识别中（ASR 正在处理）
+4. `done` → 已完成
+5. `error` → 出错了
 
 ## Code Style
 

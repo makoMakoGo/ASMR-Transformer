@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
+import Image from 'next/image'
 
 // 默认配置
 const DEFAULT_ASR_API_URL = 'https://api.siliconflow.cn/v1/audio/transcriptions'
@@ -46,19 +47,16 @@ const areSettingsEqual = (a: Settings, b: Settings): boolean =>
   a.customInstructions === b.customInstructions &&
   a.proxyUrl === b.proxyUrl
 
-// Clean microphone + document icon for voice-to-text
+// Logo component using PNG
 function LogoIcon({ className }: { className?: string }) {
   return (
-    <svg className={className} viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-      {/* Document with lines */}
-      <rect x="8" y="6" width="24" height="32" rx="2" stroke="currentColor" strokeWidth="2" fill="none" />
-      <line x1="14" y1="14" x2="26" y2="14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-      <line x1="14" y1="20" x2="26" y2="20" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-      <line x1="14" y1="26" x2="22" y2="26" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-      {/* Pen/Edit tool */}
-      <path d="M34 18L40 12L44 16L38 22L34 22V18Z" stroke="currentColor" strokeWidth="2" fill="none" strokeLinejoin="round" />
-      <line x1="34" y1="22" x2="38" y2="18" stroke="currentColor" strokeWidth="2" />
-    </svg>
+    <Image
+      src="/logo.png"
+      alt="语音转文字"
+      width={48}
+      height={48}
+      className={className}
+    />
   )
 }
 
@@ -179,12 +177,12 @@ export default function Home() {
   const [polishing, setPolishing] = useState(false)
 
   useEffect(() => {
-    if (polishedResult && !polishing) setResultTab('polished')
+    if (polishedResult && !polishing) setCurrentTab('polish')
   }, [polishedResult, polishing])
 
   const [uploadProgress, setUploadProgress] = useState(0)
   const [status, setStatus] = useState<
-    'idle' | 'uploading' | 'uploaded' | 'fetching-url' | 'transcribing' | 'done' | 'error'
+    'idle' | 'processing' | 'transcribing' | 'done' | 'error'
   >('idle')
   const [statusMessage, setStatusMessage] = useState('')
   const [logs, setLogs] = useState<LogEntry[]>([])
@@ -212,7 +210,7 @@ export default function Home() {
   const [audioUrlInput, setAudioUrlInput] = useState('')
   const [copied, setCopied] = useState(false)
   const [copiedPolished, setCopiedPolished] = useState(false)
-  const [currentTab, setCurrentTab] = useState<'source' | 'results' | 'settings' | 'logs'>('source')
+  const [currentTab, setCurrentTab] = useState<'source' | 'transcription' | 'polish' | 'settings' | 'logs'>('source')
   const fileInputRef = useRef<HTMLInputElement>(null)
   const logsContainerRef = useRef<HTMLDivElement>(null)
 
@@ -322,20 +320,22 @@ export default function Home() {
     }
   }
 
-  const transcribe = async (file: File) => {
+  const transcribe = async (file: File, skipClearLogs = false) => {
     if (!apiKey) {
       setResult('请先填写 API Key')
       addLog('错误: 未填写 API Key', 'error')
       return
     }
 
-    clearLogs()
+    if (!skipClearLogs) {
+      clearLogs()
+    }
     setLoading(true)
     setResult('')
     setPolishedResult('')
     setUploadProgress(0)
-    setStatus('uploading')
-    setStatusMessage('准备上传文件...')
+    setStatus('processing')
+    setStatusMessage('正在上传到识别服务...')
 
     addLog(`开始处理文件: ${file.name}`, 'info')
     addLog(`文件大小: ${formatFileSize(file.size)}`, 'info')
@@ -367,9 +367,9 @@ export default function Home() {
       }
 
       xhr.upload.onload = () => {
-        setStatus('uploaded')
-        setStatusMessage('上传完成，等待服务器响应...')
-        addLog('文件上传完成，等待服务器处理...', 'success')
+        setStatus('transcribing')
+        setStatusMessage('正在识别语音...')
+        addLog('上传完成，正在识别语音...', 'success')
       }
 
       const response = await new Promise<{ ok: boolean; status: number; data: Record<string, unknown> }>((resolve, reject) => {
@@ -391,8 +391,7 @@ export default function Home() {
       })
 
       setStatus('transcribing')
-      setStatusMessage('服务器正在进行语音识别...')
-      addLog('正在进行语音识别...', 'info')
+      setStatusMessage('正在识别语音...')
 
       if (response.ok) {
         const text = (response.data.text as string) || ''
@@ -400,8 +399,8 @@ export default function Home() {
         setStatus('done')
         setStatusMessage('转录完成')
         addLog(`转录成功! 文本长度: ${text.length} 字符`, 'success')
-        // Auto switch to results tab
-        setCurrentTab('results')
+        // Auto switch to transcription tab
+        setCurrentTab('transcription')
       } else {
         setResult(`错误: ${response.status} - ${JSON.stringify(response.data)}`)
         setStatus('error')
@@ -419,6 +418,7 @@ export default function Home() {
     }
   }
 
+  // 下载远程音频（带进度）并转录
   const importFromUrl = async () => {
     const url = audioUrlInput.trim()
     if (!url) {
@@ -448,80 +448,92 @@ export default function Home() {
     setResult('')
     setPolishedResult('')
     setUploadProgress(0)
-    setStatus('fetching-url')
-    setStatusMessage('正在从链接获取音频...')
-
-    const effectiveApiUrl = apiUrl.trim() || DEFAULT_ASR_API_URL
-    const effectiveModel = model.trim() || DEFAULT_ASR_MODEL
+    setStatus('processing')
+    setStatusMessage('正在连接音频源...')
 
     addLog(`开始从链接导入音频: ${url}`, 'info')
-    addLog(`目标 API: ${effectiveApiUrl}`, 'info')
-    addLog(`使用模型: ${effectiveModel}`, 'info')
-
-    const transcribingTimer = setTimeout(() => {
-      setStatus((prev) => (prev === 'fetching-url' ? 'transcribing' : prev))
-      setStatusMessage('服务器正在进行语音识别...')
-      addLog('服务器正在进行语音识别...', 'info')
-    }, 800)
 
     try {
-      const res = await fetch('/api/fetch-audio', {
+      // 第一步：通过代理 API 下载音频（带进度）
+      const proxyRes = await fetch('/api/proxy-audio', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           url,
-          asrApiKey: apiKey,
-          asrApiUrl: effectiveApiUrl,
-          asrModel: effectiveModel,
-          polish: false,
           proxyUrl: proxyUrl.trim() || undefined,
         }),
       })
 
-      clearTimeout(transcribingTimer)
-      let data: Record<string, any> = {}
-      try {
-        data = await res.json()
-      } catch {
-        data = {}
+      // 检查是否返回 JSON 错误
+      const contentType = proxyRes.headers.get('content-type') || ''
+      if (contentType.includes('application/json')) {
+        const errorData = await proxyRes.json()
+        throw new Error(errorData.error || '下载失败')
       }
 
-      if (res.ok && data.success) {
-        const text = (data.transcription as string) || ''
-        setResult(text || '转录完成但无文本返回')
-        setStatus('done')
-        setStatusMessage('转录完成')
+      if (!proxyRes.ok) {
+        throw new Error(`下载失败 (${proxyRes.status})`)
+      }
 
-        if (data.metadata) {
-          addLog(
-            `音频拉取完成: ${data.metadata.fileName || '在线音频'} (${formatFileSize(
-              data.metadata.fileSize || 0
-            )})`,
-            'success'
-          )
+      // 获取文件信息
+      const contentLength = proxyRes.headers.get('content-length')
+      const totalSize = contentLength ? parseInt(contentLength, 10) : 0
+      const fileNameHeader = proxyRes.headers.get('x-file-name')
+      const fileName = fileNameHeader ? decodeURIComponent(fileNameHeader) : '在线音频.mp3'
+      const mimeType = proxyRes.headers.get('content-type') || 'audio/mpeg'
+
+      addLog(`开始下载: ${fileName} (${totalSize ? formatFileSize(totalSize) : '未知大小'})`, 'info')
+      setStatusMessage(`正在下载 ${fileName}...`)
+
+      // 流式读取并显示进度
+      const reader = proxyRes.body?.getReader()
+      if (!reader) {
+        throw new Error('无法读取音频数据流')
+      }
+
+      const chunks: Uint8Array[] = []
+      let receivedLength = 0
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+
+        chunks.push(value)
+        receivedLength += value.length
+
+        // 更新下载进度
+        if (totalSize > 0) {
+          const percent = Math.round((receivedLength / totalSize) * 100)
+          setUploadProgress(percent)
+          setStatusMessage(`正在下载 ${formatFileSize(receivedLength)} / ${formatFileSize(totalSize)}`)
+          if (percent % 25 === 0) {
+            addLog(`下载进度: ${percent}%`, 'info')
+          }
         } else {
-          addLog('音频拉取完成', 'success')
+          setStatusMessage(`已下载 ${formatFileSize(receivedLength)}`)
         }
-
-        addLog(`转录成功! 文本长度: ${text.length} 字符`, 'success')
-        // Auto switch to results tab
-        setCurrentTab('results')
-      } else {
-        const errorMsg = data.error || '导入失败'
-        setResult(`错误: ${errorMsg}`)
-        setStatus('error')
-        setStatusMessage('导入失败')
-        addLog(`导入失败: ${errorMsg}`, 'error')
       }
+
+      addLog(`下载完成: ${formatFileSize(receivedLength)}`, 'success')
+
+      // 构造 File 对象
+      const audioBlob = new Blob(chunks, { type: mimeType })
+      const audioFile = new File([audioBlob], fileName, { type: mimeType })
+
+      // 第二步：上传到 ASR（复用 transcribe 逻辑）
+      setUploadProgress(0)
+      setStatusMessage('正在上传到识别服务...')
+      addLog('开始上传到 ASR 服务...', 'info')
+
+      // 直接调用 transcribe，它会处理上传进度和识别
+      await transcribe(audioFile, true)
+
     } catch (e) {
-      clearTimeout(transcribingTimer)
       const errorMsg = e instanceof Error ? e.message : String(e)
       setResult(`请求失败: ${errorMsg}`)
       setStatus('error')
-      setStatusMessage('请求失败')
-      addLog(`请求失败: ${errorMsg}`, 'error')
-    } finally {
-      clearTimeout(transcribingTimer)
+      setStatusMessage('导入失败')
+      addLog(`导入失败: ${errorMsg}`, 'error')
       setLoading(false)
     }
   }
@@ -632,9 +644,7 @@ export default function Home() {
 
   const statusConfig = {
     idle: { text: '准备就绪', color: 'bg-muted-foreground' },
-    uploading: { text: '上传中', color: 'bg-primary' },
-    uploaded: { text: '已上传', color: 'bg-emerald-600' },
-    'fetching-url': { text: '拉取链接', color: 'bg-primary' },
+    processing: { text: '处理中', color: 'bg-primary' },
     transcribing: { text: '识别中', color: 'bg-amber-600' },
     done: { text: '已完成', color: 'bg-emerald-600' },
     error: { text: '出错了', color: 'bg-destructive' },
@@ -651,7 +661,8 @@ export default function Home() {
 
   const mainTabs = [
     { id: 'source' as const, label: '来源' },
-    { id: 'results' as const, label: '结果' },
+    { id: 'transcription' as const, label: '转录结果' },
+    { id: 'polish' as const, label: '润色输出' },
     { id: 'settings' as const, label: '设置' },
     { id: 'logs' as const, label: '日志' },
   ]
@@ -677,7 +688,7 @@ export default function Home() {
         </button>
       </div>
 
-      <div className="max-w-xl mx-auto px-4 py-12">
+      <div className="max-w-2xl mx-auto px-4 py-12">
         {/* Header */}
         <div className="text-center mb-8">
           <div className="mb-4 flex justify-center">
@@ -721,20 +732,23 @@ export default function Home() {
             {currentTab === 'source' && (
               <div role="tabpanel" id="tabpanel-source" aria-labelledby="tab-source" className="space-y-5 animate-fade-in">
                 {/* Upload Zone - Local File */}
-                <div
-                  onClick={() => fileInputRef.current?.click()}
-                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fileInputRef.current?.click() } }}
-                  role="button"
-                  tabIndex={0}
-                  className="border-2 border-dashed border-border rounded-lg p-6 text-center hover:border-primary/50 hover:bg-muted/30 transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary"
-                  aria-label="选择音频文件"
-                >
-                  <div className="flex flex-col items-center gap-2">
-                    <svg className="w-8 h-8 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                    </svg>
-                    <p className="text-sm text-foreground">点击选择或拖拽音频文件</p>
-                    <p className="text-xs text-muted-foreground">支持 mp3, wav, m4a, flac...</p>
+                <div className="space-y-2">
+                  <label className="text-xs font-medium text-muted-foreground">本地上传</label>
+                  <div
+                    onClick={() => fileInputRef.current?.click()}
+                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fileInputRef.current?.click() } }}
+                    role="button"
+                    tabIndex={0}
+                    className="border-2 border-dashed border-border rounded-lg p-6 text-center hover:border-primary/50 hover:bg-muted/30 transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary"
+                    aria-label="选择音频文件"
+                  >
+                    <div className="flex flex-col items-center gap-2">
+                      <svg className="w-8 h-8 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      </svg>
+                      <p className="text-sm text-foreground">点击选择或拖拽音频文件</p>
+                      <p className="text-xs text-muted-foreground">支持 mp3, wav, m4a, flac...</p>
+                    </div>
                   </div>
                 </div>
                 <input ref={fileInputRef} type="file" accept="audio/*" onChange={handleFileChange} className="hidden" aria-label="选择音频文件" />
@@ -766,33 +780,43 @@ export default function Home() {
                       {checking ? '检查中...' : '检查'}
                     </button>
                   </div>
+                  <p className="text-xs text-muted-foreground">支持 asmrgay.com 及备用站点的播放页面或直链</p>
                 </div>
 
-                {/* Selected Audio Display (unified) */}
-                {audioInfo && !loading && (
-                  <div className="p-3 bg-muted/50 rounded-lg border border-border">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2 min-w-0 flex-1">
-                        <svg className="w-5 h-5 text-primary shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" />
-                        </svg>
-                        <span className="text-sm text-foreground font-medium truncate">{audioInfo.name}</span>
+                {/* Selected Audio Display (unified - always visible) */}
+                <div className="p-3 bg-muted/50 rounded-lg border border-border">
+                  {audioInfo && !loading ? (
+                    <>
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2 min-w-0 flex-1">
+                          <svg className="w-5 h-5 text-primary shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" />
+                          </svg>
+                          <span className="text-sm text-foreground font-medium truncate">{audioInfo.name}</span>
+                        </div>
+                        <button
+                          onClick={clearAudio}
+                          className="p-1 hover:bg-muted rounded cursor-pointer ml-2"
+                          aria-label="删除所选音频"
+                        >
+                          <svg className="w-4 h-4 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </button>
                       </div>
-                      <button
-                        onClick={clearAudio}
-                        className="p-1 hover:bg-muted rounded cursor-pointer ml-2"
-                        aria-label="删除所选音频"
-                      >
-                        <svg className="w-4 h-4 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                      </button>
+                      <div className="mt-1 text-xs text-muted-foreground">
+                        {formatFileSize(audioInfo.size)} · 来源: {audioInfo.source === 'local' ? '本地上传' : '在线链接'}
+                      </div>
+                    </>
+                  ) : (
+                    <div className="flex items-center gap-2 text-muted-foreground">
+                      <svg className="w-5 h-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" />
+                      </svg>
+                      <span className="text-sm">未选择音频</span>
                     </div>
-                    <div className="mt-1 text-xs text-muted-foreground">
-                      {formatFileSize(audioInfo.size)} · 来源: {audioInfo.source === 'local' ? '本地上传' : '在线链接'}
-                    </div>
-                  </div>
-                )}
+                  )}
+                </div>
 
                 {/* Start Transcribe Button (always visible) */}
                 <button
@@ -814,95 +838,93 @@ export default function Home() {
                 {status !== 'idle' && (
                   <div className="p-3 bg-muted/50 rounded-lg border border-border" role="status" aria-live="polite">
                     <div className="flex items-center gap-2 mb-2">
-                      <span className={`w-2 h-2 rounded-full ${statusConfig[status].color} ${['uploading', 'uploaded', 'transcribing', 'fetching-url'].includes(status) ? 'animate-pulse' : ''}`} aria-hidden="true" />
+                      <span className={`w-2 h-2 rounded-full ${statusConfig[status].color} ${['processing', 'transcribing'].includes(status) ? 'animate-pulse' : ''}`} aria-hidden="true" />
                       <span className="text-sm font-medium text-foreground">{statusConfig[status].text}</span>
-                      {status === 'uploading' && <span className="text-xs text-muted-foreground ml-auto">{uploadProgress}%</span>}
+                      {status === 'processing' && uploadProgress > 0 && <span className="text-xs text-muted-foreground ml-auto">{uploadProgress}%</span>}
                     </div>
-                    {status === 'uploading' && (
+                    {status === 'processing' && uploadProgress > 0 && (
                       <div className="w-full h-1 bg-muted rounded-full overflow-hidden" role="progressbar" aria-valuenow={uploadProgress} aria-valuemin={0} aria-valuemax={100}>
                         <div className="h-full bg-primary transition-all duration-300" style={{ width: `${uploadProgress}%` }} />
                       </div>
                     )}
-                    {['uploaded', 'transcribing', 'fetching-url'].includes(status) && (
+                    {(status === 'processing' && uploadProgress === 0) || status === 'transcribing' ? (
                       <div className="w-full h-1 bg-muted rounded-full overflow-hidden">
                         <div className="h-full bg-primary/60 animate-pulse w-full" />
                       </div>
-                    )}
+                    ) : null}
                     {statusMessage && <p className="text-xs text-muted-foreground mt-2">{statusMessage}</p>}
                   </div>
                 )}
               </div>
             )}
 
-            {/* Results Tab */}
-            {currentTab === 'results' && (
-              <div role="tabpanel" id="tabpanel-results" aria-labelledby="tab-results" className="space-y-4 animate-fade-in">
-                {/* Sub-tabs: Original / Polished */}
-                <div className="flex items-center gap-4 border-b border-border pb-2">
-                  <div role="tablist" aria-label="结果类型" className="flex items-center gap-4">
-                    <button
-                      onClick={() => setResultTab('original')}
-                      role="tab"
-                      aria-selected={resultTab === 'original'}
-                      aria-controls="result-panel-original"
-                      id="result-tab-original"
-                      className={`text-sm font-medium pb-1 border-b-2 cursor-pointer transition-colors ${
-                        resultTab === 'original'
-                          ? 'border-primary text-foreground'
-                          : 'border-transparent text-muted-foreground hover:text-foreground'
-                      }`}
-                    >
-                      原始文本
-                    </button>
-                    <button
-                      onClick={() => setResultTab('polished')}
-                      role="tab"
-                      aria-selected={resultTab === 'polished'}
-                      aria-controls="result-panel-polished"
-                      id="result-tab-polished"
-                      className={`text-sm font-medium pb-1 border-b-2 cursor-pointer transition-colors ${
-                        resultTab === 'polished'
-                          ? 'border-primary text-foreground'
-                          : 'border-transparent text-muted-foreground hover:text-foreground'
-                      }`}
-                    >
-                      润色文本
-                    </button>
-                  </div>
-                  <div className="flex-1" />
-                  {result && !result.startsWith('错误') && !result.startsWith('请求失败') && (
-                    <button
-                      onClick={() => polishText(result)}
-                      disabled={polishing}
-                      className="px-3 py-1 min-h-[36px] bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 rounded-md text-xs font-medium cursor-pointer transition-colors"
-                    >
-                      {polishing ? '润色中...' : '润色'}
-                    </button>
-                  )}
-                  {(resultTab === 'original' ? result : polishedResult) && (
-                    <button
-                      onClick={resultTab === 'original' ? handleCopy : handleCopyPolished}
-                      className={`px-3 py-1 min-h-[36px] rounded-md text-xs font-medium cursor-pointer transition-colors ${
-                        (resultTab === 'original' ? copied : copiedPolished)
-                          ? 'bg-emerald-600 text-white'
-                          : 'bg-muted text-muted-foreground hover:bg-muted/80'
-                      }`}
-                    >
-                      {(resultTab === 'original' ? copied : copiedPolished) ? '已复制' : '复制'}
-                    </button>
-                  )}
+            {/* Transcription Tab (转录结果) */}
+            {currentTab === 'transcription' && (
+              <div role="tabpanel" id="tabpanel-transcription" aria-labelledby="tab-transcription" className="space-y-4 animate-fade-in">
+                {/* Action buttons */}
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => polishText(result)}
+                    disabled={polishing || !result || result.startsWith('错误') || result.startsWith('请求失败')}
+                    className="px-4 py-2 min-h-[40px] bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg text-sm font-medium cursor-pointer transition-colors"
+                  >
+                    {polishing ? '润色中...' : '开始润色'}
+                  </button>
+                  <button
+                    onClick={handleCopy}
+                    disabled={!result}
+                    className={`px-4 py-2 min-h-[40px] rounded-lg text-sm font-medium cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                      copied
+                        ? 'bg-emerald-600 text-white'
+                        : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                    }`}
+                  >
+                    {copied ? '已复制' : '复制'}
+                  </button>
                 </div>
 
-                {/* Result Content */}
-                <div
-                  role="tabpanel"
-                  id={`result-panel-${resultTab}`}
-                  aria-labelledby={`result-tab-${resultTab}`}
-                  className="min-h-[200px] p-4 bg-muted/30 rounded-lg border border-border text-sm text-foreground whitespace-pre-wrap leading-relaxed"
-                >
-                  {resultTab === 'original' ? (
-                    result || <span className="text-muted-foreground">暂无转录结果...</span>
-                  ) : polishing ? (
+                {/* Transcription Content */}
+                <div className="min-h-[200px] p-4 bg-muted/30 rounded-lg border border-border text-sm text-foreground whitespace-pre-wrap leading-relaxed">
+                  {result || <span className="text-muted-foreground">暂无转录结果，请先在「来源」页上传或导入音频...</span>}
+                </div>
+
+                {/* Character count */}
+                {result && (
+                  <p className="text-xs text-muted-foreground">
+                    {result.length} 字符
+                  </p>
+                )}
+              </div>
+            )}
+
+            {/* Polish Tab (润色输出) */}
+            {currentTab === 'polish' && (
+              <div role="tabpanel" id="tabpanel-polish" aria-labelledby="tab-polish" className="space-y-4 animate-fade-in">
+                {/* Action buttons */}
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => polishText(result)}
+                    disabled={polishing || !result || result.startsWith('错误') || result.startsWith('请求失败')}
+                    className="px-4 py-2 min-h-[40px] bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg text-sm font-medium cursor-pointer transition-colors"
+                  >
+                    {polishing ? '润色中...' : '重新润色'}
+                  </button>
+                  <button
+                    onClick={handleCopyPolished}
+                    disabled={!polishedResult}
+                    className={`px-4 py-2 min-h-[40px] rounded-lg text-sm font-medium cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                      copiedPolished
+                        ? 'bg-emerald-600 text-white'
+                        : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                    }`}
+                  >
+                    {copiedPolished ? '已复制' : '复制'}
+                  </button>
+                </div>
+
+                {/* Polished Content */}
+                <div className="min-h-[200px] p-4 bg-muted/30 rounded-lg border border-border text-sm text-foreground whitespace-pre-wrap leading-relaxed">
+                  {polishing ? (
                     <div className="flex items-center gap-2 text-primary">
                       <span className="ai-dots">
                         <span className="ai-dot" />
@@ -912,14 +934,14 @@ export default function Home() {
                       <span>正在润色...</span>
                     </div>
                   ) : (
-                    polishedResult || <span className="text-muted-foreground">点击「润色」处理文本...</span>
+                    polishedResult || <span className="text-muted-foreground">暂无润色结果，请先在「转录结果」页点击润色...</span>
                   )}
                 </div>
 
                 {/* Character count */}
-                {(resultTab === 'original' ? result : polishedResult) && (
+                {polishedResult && !polishing && (
                   <p className="text-xs text-muted-foreground">
-                    {(resultTab === 'original' ? result : polishedResult).length} 字符
+                    {polishedResult.length} 字符
                   </p>
                 )}
               </div>
@@ -928,78 +950,71 @@ export default function Home() {
             {/* Settings Tab */}
             {currentTab === 'settings' && (
               <div role="tabpanel" id="tabpanel-settings" aria-labelledby="tab-settings" className="space-y-5 animate-fade-in">
-                <div className="space-y-1">
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="text-xs text-muted-foreground truncate">
-                      配置文件: {envFilePath || '.env'}
-                      {!envFileExists && (
-                        <span className="ml-2 text-amber-600 dark:text-amber-400">（尚未创建）</span>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <div
-                        className={`text-xs font-medium ${
-                          savingSettings
-                            ? 'text-amber-600 dark:text-amber-400'
-                          : envSaveError
-                          ? 'text-destructive'
-                          : isDirty
+                <div className="space-y-2">
+                  {/* 第一行：状态指示器和操作按钮 */}
+                  <div className="flex items-center gap-2">
+                    <div
+                      className={`text-xs font-medium ${
+                        savingSettings
                           ? 'text-amber-600 dark:text-amber-400'
-                          : 'text-emerald-600 dark:text-emerald-400'
-                        }`}
-                      >
-                        {savingSettings ? '保存中...' : envSaveError ? '保存失败' : isDirty ? '未保存' : '已保存'}
-                      </div>
-                      <button
-                        onClick={() => reloadSettingsFromEnv(false)}
-                        disabled={savingSettings}
-                        className="px-3 py-1 min-h-[32px] bg-muted text-muted-foreground hover:bg-muted/80 disabled:opacity-50 disabled:cursor-not-allowed rounded-md text-xs font-medium cursor-pointer transition-colors"
-                      >
-                        重新加载
-                      </button>
-                      <button
-                        onClick={discardLocalChanges}
-                        disabled={savingSettings || !isDirty}
-                        className="px-3 py-1 min-h-[32px] bg-muted text-muted-foreground hover:bg-muted/80 disabled:opacity-50 disabled:cursor-not-allowed rounded-md text-xs font-medium cursor-pointer transition-colors"
-                      >
-                        放弃改动
-                      </button>
-                      <button
-                        onClick={saveSettingsToEnv}
-                        disabled={!settingsLoaded || savingSettings || !isDirty}
-                        className="px-3 py-1 min-h-[32px] bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed rounded-md text-xs font-medium cursor-pointer transition-colors"
-                      >
-                        保存
-                      </button>
+                        : envSaveError
+                        ? 'text-destructive'
+                        : isDirty
+                        ? 'text-amber-600 dark:text-amber-400'
+                        : 'text-emerald-600 dark:text-emerald-400'
+                      }`}
+                    >
+                      {savingSettings ? '保存中...' : envSaveError ? '保存失败' : isDirty ? '未保存' : '已保存'}
                     </div>
+                    <div className="flex-1" />
+                    <button
+                      onClick={() => reloadSettingsFromEnv(false)}
+                      disabled={savingSettings}
+                      className="px-3 py-1 min-h-[32px] bg-muted text-muted-foreground hover:bg-muted/80 disabled:opacity-50 disabled:cursor-not-allowed rounded-md text-xs font-medium cursor-pointer transition-colors"
+                    >
+                      重新加载
+                    </button>
+                    <button
+                      onClick={discardLocalChanges}
+                      disabled={savingSettings || !isDirty}
+                      className="px-3 py-1 min-h-[32px] bg-muted text-muted-foreground hover:bg-muted/80 disabled:opacity-50 disabled:cursor-not-allowed rounded-md text-xs font-medium cursor-pointer transition-colors"
+                    >
+                      放弃改动
+                    </button>
+                    <button
+                      onClick={saveSettingsToEnv}
+                      disabled={!settingsLoaded || savingSettings || !isDirty}
+                      className="px-3 py-1 min-h-[32px] bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed rounded-md text-xs font-medium cursor-pointer transition-colors"
+                    >
+                      保存
+                    </button>
                   </div>
-                  {settingsLoadError && <div className="text-xs text-destructive truncate">{settingsLoadError}</div>}
-                  {envSaveError && <div className="text-xs text-destructive truncate">保存失败: {envSaveError}</div>}
+
+                  {/* 第二行：配置文件路径 */}
+                  <div className="text-xs text-muted-foreground">
+                    配置文件: {envFilePath || '.env'}
+                    {!envFileExists && (
+                      <span className="ml-2 text-amber-600 dark:text-amber-400">（尚未创建）</span>
+                    )}
+                  </div>
+
+                  {/* 条件渲染：错误和警告 */}
+                  {settingsLoadError && <div className="text-xs text-destructive">{settingsLoadError}</div>}
+                  {envSaveError && <div className="text-xs text-destructive">保存失败: {envSaveError}</div>}
                   {isDirty && (
                     <div className="text-xs text-amber-600 dark:text-amber-400">
-                      改动未保存：点击「保存」写入 {envFilePath || '.env'}，或点击「放弃改动」撤销本地修改。
+                      点击「保存」写入.env 或点击「放弃改动」撤销本地修改。
                     </div>
                   )}
                 </div>
 
                 {/* ASR Config */}
                 <div>
-                  <h2 className="text-sm font-medium text-foreground mb-1">语音识别配置</h2>
-                  <p className="text-xs text-muted-foreground mb-3">ASR API Settings</p>
+                  <h2 className="text-sm font-medium text-foreground mb-3">语音识别配置 (ASR)</h2>
                   <div className="space-y-3">
-                    <div>
-                      <label htmlFor="asr-api-key" className="block text-xs font-medium text-muted-foreground mb-1">API Key</label>
-                      <input
-                        id="asr-api-key"
-                        type="password"
-                        placeholder="硅基流动 API Key（必填）"
-                        value={apiKey}
-                        onChange={(e) => setApiKey(e.target.value)}
-                        className="w-full px-3 py-2 bg-transparent rounded-lg border border-border text-sm text-foreground placeholder-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50 focus:border-primary transition-colors"
-                      />
-                    </div>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
+                    {/* 第一行：API URL 和 Model 并排（6:4）*/}
+                    <div className="flex gap-3">
+                      <div className="flex-[6]">
                         <label htmlFor="asr-api-url" className="block text-xs font-medium text-muted-foreground mb-1">API URL</label>
                         <input
                           id="asr-api-url"
@@ -1009,7 +1024,7 @@ export default function Home() {
                           className="w-full px-3 py-2 bg-transparent rounded-lg border border-border text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary/50 focus:border-primary transition-colors"
                         />
                       </div>
-                      <div>
+                      <div className="flex-[4]">
                         <label htmlFor="asr-model" className="block text-xs font-medium text-muted-foreground mb-1">模型</label>
                         <input
                           id="asr-model"
@@ -1020,27 +1035,32 @@ export default function Home() {
                         />
                       </div>
                     </div>
+
+                    {/* 第二行：API Key（宽度和 URL 一致，占 60%）*/}
+                    <div className="flex gap-3">
+                      <div className="flex-[6]">
+                        <label htmlFor="asr-api-key" className="block text-xs font-medium text-muted-foreground mb-1">API Key</label>
+                        <input
+                          id="asr-api-key"
+                          type="password"
+                          placeholder="硅基流动 API Key（必填）"
+                          value={apiKey}
+                          onChange={(e) => setApiKey(e.target.value)}
+                          className="w-full px-3 py-2 bg-transparent rounded-lg border border-border text-xs text-foreground placeholder-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50 focus:border-primary transition-colors"
+                        />
+                      </div>
+                      <div className="flex-[4]" />
+                    </div>
                   </div>
                 </div>
 
                   {/* LLM Config */}
                 <div>
-                  <h2 className="text-sm font-medium text-foreground mb-1">文本润色配置</h2>
-                  <p className="text-xs text-muted-foreground mb-3">LLM · OpenAI 兼容</p>
+                  <h2 className="text-sm font-medium text-foreground mb-3">文本润色配置 (LLM · OpenAI 兼容)</h2>
                   <div className="space-y-3">
-                    <div>
-                      <label htmlFor="llm-api-key" className="block text-xs font-medium text-muted-foreground mb-1">API Key（可选）</label>
-                      <input
-                        id="llm-api-key"
-                        type="password"
-                        placeholder="可选：你的服务需要就填写"
-                        value={llmApiKey}
-                        onChange={(e) => setLlmApiKey(e.target.value)}
-                        className="w-full px-3 py-2 bg-transparent rounded-lg border border-border text-sm text-foreground placeholder-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50 focus:border-primary transition-colors"
-                      />
-                    </div>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
+                    {/* 第一行：API URL 和模型并排（6:4）*/}
+                    <div className="flex gap-3">
+                      <div className="flex-[6]">
                         <label htmlFor="llm-api-url" className="block text-xs font-medium text-muted-foreground mb-1">API URL</label>
                         <input
                           id="llm-api-url"
@@ -1050,7 +1070,7 @@ export default function Home() {
                           className="w-full px-3 py-2 bg-transparent rounded-lg border border-border text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary/50 focus:border-primary transition-colors"
                         />
                       </div>
-                      <div>
+                      <div className="flex-[4]">
                         <label htmlFor="llm-model" className="block text-xs font-medium text-muted-foreground mb-1">模型</label>
                         <input
                           id="llm-model"
@@ -1061,6 +1081,24 @@ export default function Home() {
                         />
                       </div>
                     </div>
+
+                    {/* 第二行：API Key（宽度和 URL 一致，占 60%）*/}
+                    <div className="flex gap-3">
+                      <div className="flex-[6]">
+                        <label htmlFor="llm-api-key" className="block text-xs font-medium text-muted-foreground mb-1">API Key</label>
+                        <input
+                          id="llm-api-key"
+                          type="password"
+                          placeholder="LLM API Key"
+                          value={llmApiKey}
+                          onChange={(e) => setLlmApiKey(e.target.value)}
+                          className="w-full px-3 py-2 bg-transparent rounded-lg border border-border text-xs text-foreground placeholder-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50 focus:border-primary transition-colors"
+                        />
+                      </div>
+                      <div className="flex-[4]" />
+                    </div>
+
+                    {/* 第三行：润色指令 */}
                     <div>
                       <div className="flex items-center justify-between mb-1">
                         <label htmlFor="custom-instructions" className="block text-xs font-medium text-muted-foreground">润色指令</label>
@@ -1135,13 +1173,13 @@ export default function Home() {
                 {/* Logs list */}
                 <div
                   ref={logsContainerRef}
-                  className="h-64 overflow-y-auto p-3 bg-muted/30 rounded-lg border border-border font-mono text-xs space-y-1"
+                  className="h-64 overflow-y-auto overflow-x-hidden p-3 bg-muted/30 rounded-lg border border-border font-mono text-xs space-y-1"
                 >
                   {filteredLogs.length === 0 ? (
                     <span className="text-muted-foreground">暂无日志...</span>
                   ) : (
                     filteredLogs.map((log, i) => (
-                      <div key={i} className={`${logColors[log.type]} animate-slide-in`}>
+                      <div key={i} className={`${logColors[log.type]} animate-slide-in break-all`}>
                         <span className="text-muted-foreground/60">[{log.time}]</span> {log.message}
                       </div>
                     ))

@@ -7,6 +7,10 @@ const inter = Inter({ subsets: ['latin'], display: 'swap', variable: '--font-int
 export const metadata: Metadata = {
   title: '语音转文字 - Voice to Text',
   description: '使用 AI 进行语音识别与文本润色',
+  icons: {
+    icon: '/logo.png',
+    apple: '/logo.png',
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: 'default',

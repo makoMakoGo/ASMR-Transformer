@@ -1,6 +1,10 @@
 <h1 align="center">🎙️ ASMR Transformer</h1>
 
 <p align="center">
+  <img src="public/logo.png" alt="ASMR Transformer Logo" width="120"/>
+</p>
+
+<p align="center">
   <img src="docs/images/juya-foot.jpg" alt="橘鸦的诱惑" width="400" />
 </p>
 

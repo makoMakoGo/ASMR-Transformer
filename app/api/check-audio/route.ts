@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { HttpsProxyAgent } from 'https-proxy-agent'
+import { isAlistPageUrl, resolveAlistUrl } from '@/lib/alist-utils'
 
 export async function POST(request: NextRequest) {
   try {
@@ -20,7 +21,35 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: '无效的 URL' }, { status: 400 })
     }
 
-    // Setup fetch options
+    // 如果是 AList 播放页面，先解析真实音频 URL
+    let actualUrl = url
+    let resolvedFileName: string | undefined
+    let resolvedFileSize: number | undefined
+    let resolvedContentType: string | undefined
+
+    if (isAlistPageUrl(url)) {
+      try {
+        // 创建支持代理的 fetch 函数
+        const fetchWithProxy = async (fetchUrl: string, init?: RequestInit): Promise<Response> => {
+          if (proxyUrl) {
+            const agent = new HttpsProxyAgent(proxyUrl)
+            return fetch(fetchUrl, { ...init, agent } as RequestInit & { agent: unknown })
+          }
+          return fetch(fetchUrl, init)
+        }
+
+        const resolved = await resolveAlistUrl(url, fetchWithProxy)
+        actualUrl = resolved.rawUrl
+        resolvedFileName = resolved.fileName
+        resolvedFileSize = resolved.fileSize
+        resolvedContentType = resolved.contentType
+      } catch (e) {
+        const errorMsg = e instanceof Error ? e.message : String(e)
+        return NextResponse.json({ success: false, error: `解析播放页面失败: ${errorMsg}` }, { status: 400 })
+      }
+    }
+
+    // Setup fetch options for HEAD request
     const fetchOptions: RequestInit & { agent?: unknown } = {
       method: 'HEAD',
       headers: {
@@ -32,8 +61,8 @@ export async function POST(request: NextRequest) {
       fetchOptions.agent = new HttpsProxyAgent(proxyUrl)
     }
 
-    // Make HEAD request
-    const response = await fetch(url, fetchOptions)
+    // Make HEAD request to actual URL
+    const response = await fetch(actualUrl, fetchOptions)
 
     if (!response.ok) {
       return NextResponse.json(
@@ -44,12 +73,12 @@ export async function POST(request: NextRequest) {
 
     // Extract metadata
     const contentLength = response.headers.get('content-length')
-    const contentType = response.headers.get('content-type') || 'audio/unknown'
+    const contentType = response.headers.get('content-type') || resolvedContentType || 'audio/unknown'
     const contentDisposition = response.headers.get('content-disposition')
 
     // Extract filename from content-disposition or URL
-    let fileName = ''
-    if (contentDisposition) {
+    let fileName = resolvedFileName || ''
+    if (!fileName && contentDisposition) {
       const match = contentDisposition.match(/filename\*?=(?:UTF-8'')?["']?([^"';\n]+)["']?/i)
       if (match) {
         fileName = decodeURIComponent(match[1])
@@ -57,7 +86,8 @@ export async function POST(request: NextRequest) {
     }
     if (!fileName) {
       // Extract from URL path
-      const pathParts = parsedUrl.pathname.split('/')
+      const urlForParsing = new URL(actualUrl)
+      const pathParts = urlForParsing.pathname.split('/')
       fileName = pathParts[pathParts.length - 1] || '在线音频'
       // Remove query string if present
       fileName = fileName.split('?')[0]
@@ -68,6 +98,9 @@ export async function POST(request: NextRequest) {
         // Keep as is if decoding fails
       }
     }
+
+    // Determine file size (prefer resolved, then HEAD response)
+    const fileSize = resolvedFileSize || (contentLength ? parseInt(contentLength, 10) : 0)
 
     // Validate content type (should be audio)
     const isAudio = contentType.startsWith('audio/') ||
@@ -84,8 +117,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       name: fileName || '在线音频',
-      size: contentLength ? parseInt(contentLength, 10) : 0,
+      size: fileSize,
       type: contentType,
+      // 如果进行了 AList 解析，返回真实 URL
+      resolvedUrl: actualUrl !== url ? actualUrl : undefined,
     })
   } catch (e) {
     const errorMsg = e instanceof Error ? e.message : String(e)
