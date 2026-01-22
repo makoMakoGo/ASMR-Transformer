@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { isAlistPageUrl, resolveAlistUrl } from '@/lib/alist-utils'
-import { isAllowedAudioHost, isPrivateHost, isValidAudioUrl } from '@/lib/url-utils'
+import { validateAndParseAudioUrl } from '@/lib/url-utils'
 
 export async function POST(request: NextRequest) {
   let body: Record<string, unknown>
@@ -17,36 +17,26 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: '缺少 URL 参数' }, { status: 400 })
     }
 
-    // Validate URL
-    let parsedUrl: URL
-    try {
-      parsedUrl = new URL(url)
-      if (!['http:', 'https:'].includes(parsedUrl.protocol)) {
-        return NextResponse.json({ success: false, error: '仅支持 http/https 链接' }, { status: 400 })
-      }
-    } catch {
-      return NextResponse.json({ success: false, error: '无效的 URL' }, { status: 400 })
-    }
-
-    if (isPrivateHost(parsedUrl.hostname)) {
-      return NextResponse.json({ success: false, error: '不支持访问本机或内网地址' }, { status: 400 })
-    }
-
-    if (!isAllowedAudioHost(parsedUrl.hostname)) {
-      return NextResponse.json({ success: false, error: '音频 URL 无效或不受支持' }, { status: 400 })
+    const isAlistPage = isAlistPageUrl(url)
+    const inputUrlResult = validateAndParseAudioUrl(url, { requireAudioExtension: !isAlistPage })
+    if (!inputUrlResult.ok) {
+      const errorMessage =
+        inputUrlResult.error === 'INVALID_URL'
+          ? '无效的 URL'
+          : inputUrlResult.error === 'UNSUPPORTED_PROTOCOL'
+            ? '仅支持 http/https 链接'
+            : inputUrlResult.error === 'PRIVATE_HOST'
+              ? '不支持访问本机或内网地址'
+              : '音频 URL 无效或不受支持'
+      return NextResponse.json({ success: false, error: errorMessage }, { status: 400 })
     }
 
     // 如果是 AList 播放页面，先解析真实音频 URL
     let actualUrl = url
+    let actualUrlObj: URL = inputUrlResult.url
     let resolvedFileName: string | undefined
     let resolvedFileSize: number | undefined
     let resolvedContentType: string | undefined
-
-    const isAlistPage = isAlistPageUrl(url)
-
-    if (!isAlistPage && !isValidAudioUrl(url)) {
-      return NextResponse.json({ success: false, error: '音频 URL 无效或不受支持' }, { status: 400 })
-    }
 
     if (isAlistPage) {
       try {
@@ -57,8 +47,26 @@ export async function POST(request: NextRequest) {
         resolvedContentType = resolved.contentType
       } catch (e) {
         const errorMsg = e instanceof Error ? e.message : String(e)
-        return NextResponse.json({ success: false, error: `解析播放页面失败: ${errorMsg}` }, { status: 400 })
+        return NextResponse.json(
+          { success: false, error: `解析播放页面失败: ${errorMsg}` },
+          { status: 400 }
+        )
       }
+
+      const resolvedUrlResult = validateAndParseAudioUrl(actualUrl)
+      if (!resolvedUrlResult.ok) {
+        return NextResponse.json(
+          {
+            success: false,
+            error:
+              resolvedUrlResult.error === 'PRIVATE_HOST'
+                ? '不支持访问本机或内网地址'
+                : '音频 URL 无效或不受支持',
+          },
+          { status: 400 }
+        )
+      }
+      actualUrlObj = resolvedUrlResult.url
     }
 
     // Setup fetch options for HEAD request
@@ -67,29 +75,6 @@ export async function POST(request: NextRequest) {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
       },
-    }
-
-    let actualUrlObj: URL
-    try {
-      actualUrlObj = new URL(actualUrl)
-    } catch {
-      return NextResponse.json({ success: false, error: '音频 URL 无效或不受支持' }, { status: 400 })
-    }
-
-    if (!['http:', 'https:'].includes(actualUrlObj.protocol)) {
-      return NextResponse.json({ success: false, error: '音频 URL 无效或不受支持' }, { status: 400 })
-    }
-
-    if (isPrivateHost(actualUrlObj.hostname)) {
-      return NextResponse.json({ success: false, error: '不支持访问本机或内网地址' }, { status: 400 })
-    }
-
-    if (!isAllowedAudioHost(actualUrlObj.hostname)) {
-      return NextResponse.json({ success: false, error: '音频 URL 无效或不受支持' }, { status: 400 })
-    }
-
-    if (!isAlistPage && !isValidAudioUrl(actualUrl)) {
-      return NextResponse.json({ success: false, error: '音频 URL 无效或不受支持' }, { status: 400 })
     }
 
     // Make HEAD request to actual URL
@@ -116,17 +101,12 @@ export async function POST(request: NextRequest) {
       }
     }
     if (!fileName) {
-      // Extract from URL path
-      const urlForParsing = new URL(actualUrl)
-      const pathParts = urlForParsing.pathname.split('/')
+      const pathParts = actualUrlObj.pathname.split('/')
       fileName = pathParts[pathParts.length - 1] || '在线音频'
-      // Remove query string if present
-      fileName = fileName.split('?')[0]
-      // Decode URL encoding
       try {
         fileName = decodeURIComponent(fileName)
       } catch {
-        // Keep as is if decoding fails
+        // keep original
       }
     }
 
@@ -137,7 +117,8 @@ export async function POST(request: NextRequest) {
     const fileSize = resolvedSize ?? (Number.isFinite(parsedLength) ? Math.trunc(parsedLength) : 0)
 
     // Validate content type (should be audio)
-    const isAudio = contentType.startsWith('audio/') ||
+    const isAudio =
+      contentType.startsWith('audio/') ||
       contentType.includes('octet-stream') ||
       /\.(mp3|wav|m4a|flac|ogg|aac|wma)$/i.test(fileName)
 

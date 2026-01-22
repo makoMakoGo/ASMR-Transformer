@@ -95,6 +95,46 @@ export const getExtensionFromUrl = (input: string): string => {
   return parts.pop() || ''
 }
 
+export type AudioUrlValidationError =
+  | 'INVALID_URL'
+  | 'UNSUPPORTED_PROTOCOL'
+  | 'PRIVATE_HOST'
+  | 'HOST_NOT_ALLOWED'
+  | 'MISSING_AUDIO_EXTENSION'
+
+export type AudioUrlValidationResult =
+  | { ok: true; url: URL }
+  | { ok: false; error: AudioUrlValidationError }
+
+export const validateAndParseAudioUrl = (
+  input: string,
+  options: { requireAudioExtension?: boolean } = {}
+): AudioUrlValidationResult => {
+  const url = getUrlObject(input)
+  if (!url) return { ok: false, error: 'INVALID_URL' }
+
+  if (!['http:', 'https:'].includes(url.protocol)) {
+    return { ok: false, error: 'UNSUPPORTED_PROTOCOL' }
+  }
+
+  if (isPrivateHost(url.hostname)) {
+    return { ok: false, error: 'PRIVATE_HOST' }
+  }
+
+  if (!isAllowedAudioHost(url.hostname)) {
+    return { ok: false, error: 'HOST_NOT_ALLOWED' }
+  }
+
+  if (options.requireAudioExtension) {
+    const ext = getExtensionFromUrl(input)
+    if (!ext || !allowedAudioExtensions.includes(ext)) {
+      return { ok: false, error: 'MISSING_AUDIO_EXTENSION' }
+    }
+  }
+
+  return { ok: true, url }
+}
+
 export const isValidAudioUrl = (input: string): boolean => {
   const url = getUrlObject(input)
   if (!url) return false

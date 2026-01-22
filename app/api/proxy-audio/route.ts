@@ -1,56 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { isAlistPageUrl, resolveAlistUrl } from '@/lib/alist-utils'
 import { getFetchAudioMaxBytes } from '@/lib/runtime-config'
-import {
-  allowedAudioExtensions,
-  getAudioMimeType,
-  getExtensionFromUrl,
-  isAllowedAudioHost,
-  isPrivateHost,
-} from '@/lib/url-utils'
+import { getAudioMimeType, validateAndParseAudioUrl } from '@/lib/url-utils'
 
 export const runtime = 'nodejs'
 
 const DEFAULT_USER_AGENT = 'Mozilla/5.0 (ASMR-Transformer/1.0)'
 const FETCH_TIMEOUT_MS = 120_000 // 2 minutes for initial connection
 const MAX_AUDIO_BYTES = getFetchAudioMaxBytes()
-
-type AudioUrlValidationResult =
-  | { ok: true; url: URL }
-  | { ok: false; error: 'INVALID_URL' | 'PRIVATE_HOST' }
-
-const validateAndParseAudioUrl = (
-  input: string,
-  options: { requireAudioExtension?: boolean } = {}
-): AudioUrlValidationResult => {
-  let url: URL
-  try {
-    url = new URL(input)
-  } catch {
-    return { ok: false, error: 'INVALID_URL' }
-  }
-
-  if (!['http:', 'https:'].includes(url.protocol)) {
-    return { ok: false, error: 'INVALID_URL' }
-  }
-
-  if (isPrivateHost(url.hostname)) {
-    return { ok: false, error: 'PRIVATE_HOST' }
-  }
-
-  if (!isAllowedAudioHost(url.hostname)) {
-    return { ok: false, error: 'INVALID_URL' }
-  }
-
-  if (options.requireAudioExtension) {
-    const ext = getExtensionFromUrl(input)
-    if (!ext || !allowedAudioExtensions.includes(ext)) {
-      return { ok: false, error: 'INVALID_URL' }
-    }
-  }
-
-  return { ok: true, url }
-}
 
 /**
  * POST /api/proxy-audio
