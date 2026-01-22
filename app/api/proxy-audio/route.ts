@@ -92,9 +92,12 @@ export async function POST(req: NextRequest): Promise<Response> {
     } catch (error) {
       cleanup()
       const errMsg = (error as Error).message
-      // 区分客户端断开和其他错误
+      // 区分客户端断开和超时
       if ((error as Error).name === 'AbortError') {
-        return NextResponse.json({ error: '请求已取消' }, { status: 499 })
+        if (req.signal.aborted) {
+          return NextResponse.json({ error: '请求已取消' }, { status: 499 })
+        }
+        return NextResponse.json({ error: '解析播放页面超时' }, { status: 504 })
       }
       return NextResponse.json(
         { error: `解析播放页面失败: ${errMsg}` },
