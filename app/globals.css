@@ -4,53 +4,53 @@
 
 @layer base {
   :root {
-    /* Warm cream/beige palette inspired by Novel Proofer */
-    --background: 40 20% 96%;
-    --foreground: 30 10% 20%;
-    --card: 40 30% 98%;
-    --card-foreground: 30 10% 20%;
-    --popover: 40 30% 98%;
-    --popover-foreground: 30 10% 20%;
-    --primary: 25 60% 48%;
-    --primary-foreground: 40 30% 98%;
-    --secondary: 40 15% 92%;
-    --secondary-foreground: 30 10% 25%;
-    --muted: 40 15% 92%;
-    --muted-foreground: 30 8% 50%;
-    --accent: 25 60% 48%;
-    --accent-foreground: 40 30% 98%;
-    --destructive: 0 65% 55%;
+    /* 清新蓝调配色 - 匹配 Logo */
+    --background: 210 30% 98%;
+    --foreground: 210 25% 15%;
+    --card: 210 40% 99%;
+    --card-foreground: 210 25% 15%;
+    --popover: 210 40% 99%;
+    --popover-foreground: 210 25% 15%;
+    --primary: 210 70% 55%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 210 25% 94%;
+    --secondary-foreground: 210 25% 20%;
+    --muted: 210 20% 92%;
+    --muted-foreground: 210 15% 45%;
+    --accent: 340 65% 60%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 70% 55%;
     --destructive-foreground: 0 0% 100%;
-    --border: 35 15% 88%;
-    --input: 35 15% 88%;
-    --ring: 25 60% 48%;
+    --border: 210 25% 88%;
+    --input: 210 25% 88%;
+    --ring: 210 70% 55%;
     --radius: 0.5rem;
-    --scrollbar-thumb: rgba(120, 100, 90, 0.18);
-    --scrollbar-thumb-hover: rgba(120, 100, 90, 0.28);
+    --scrollbar-thumb: rgba(80, 120, 180, 0.18);
+    --scrollbar-thumb-hover: rgba(80, 120, 180, 0.28);
   }
 
   .dark {
-    --background: 30 15% 8%;
-    --foreground: 40 20% 92%;
-    --card: 30 12% 12%;
-    --card-foreground: 40 20% 92%;
-    --popover: 30 12% 12%;
-    --popover-foreground: 40 20% 92%;
-    --primary: 25 55% 55%;
-    --primary-foreground: 30 15% 8%;
-    --secondary: 30 10% 18%;
-    --secondary-foreground: 40 20% 92%;
-    --muted: 30 10% 18%;
-    --muted-foreground: 35 12% 55%;
-    --accent: 25 55% 55%;
-    --accent-foreground: 30 15% 8%;
+    --background: 210 30% 7%;
+    --foreground: 210 20% 92%;
+    --card: 210 25% 11%;
+    --card-foreground: 210 20% 92%;
+    --popover: 210 25% 11%;
+    --popover-foreground: 210 20% 92%;
+    --primary: 210 65% 60%;
+    --primary-foreground: 210 30% 7%;
+    --secondary: 210 20% 16%;
+    --secondary-foreground: 210 20% 92%;
+    --muted: 210 18% 18%;
+    --muted-foreground: 210 15% 55%;
+    --accent: 340 60% 65%;
+    --accent-foreground: 210 30% 7%;
     --destructive: 0 65% 55%;
     --destructive-foreground: 0 0% 100%;
-    --border: 30 10% 22%;
-    --input: 30 10% 22%;
-    --ring: 25 55% 55%;
-    --scrollbar-thumb: rgba(255, 255, 255, 0.12);
-    --scrollbar-thumb-hover: rgba(255, 255, 255, 0.20);
+    --border: 210 20% 20%;
+    --input: 210 20% 20%;
+    --ring: 210 65% 60%;
+    --scrollbar-thumb: rgba(140, 180, 230, 0.15);
+    --scrollbar-thumb-hover: rgba(140, 180, 230, 0.25);
   }
 
   * {

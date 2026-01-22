@@ -698,7 +698,7 @@ export default function Home() {
   const filteredLogs = logFilter === 'all' ? logs : logs.filter((log) => log.type === logFilter)
 
   const mainTabs = [
-    { id: 'source' as const, label: '来源' },
+    { id: 'source' as const, label: '音频来源' },
     { id: 'transcription' as const, label: '转录结果' },
     { id: 'polish' as const, label: '润色输出' },
     { id: 'settings' as const, label: '设置' },
@@ -757,7 +757,7 @@ export default function Home() {
                 >
                   {tab.label}
                   {currentTab === tab.id && (
-                    <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-8 h-0.5 bg-primary rounded-full" />
+                    <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-2/3 h-0.5 bg-primary rounded-full" />
                   )}
                 </button>
               ))}
