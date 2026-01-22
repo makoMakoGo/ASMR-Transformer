@@ -9,6 +9,33 @@ const DEFAULT_USER_AGENT = 'Mozilla/5.0 (ASMR-Transformer/1.0)'
 const FETCH_TIMEOUT_MS = 120_000 // 2 minutes for initial connection
 const MAX_AUDIO_BYTES = getFetchAudioMaxBytes()
 
+type AudioUrlValidationResult =
+  | { ok: true; url: URL }
+  | { ok: false; error: 'INVALID_URL' | 'PRIVATE_HOST' }
+
+const validateAndParseAudioUrl = (input: string): AudioUrlValidationResult => {
+  let url: URL
+  try {
+    url = new URL(input)
+  } catch {
+    return { ok: false, error: 'INVALID_URL' }
+  }
+
+  if (!['http:', 'https:'].includes(url.protocol)) {
+    return { ok: false, error: 'INVALID_URL' }
+  }
+
+  if (isPrivateHost(url.hostname)) {
+    return { ok: false, error: 'PRIVATE_HOST' }
+  }
+
+  if (!isAllowedAudioHost(url.hostname)) {
+    return { ok: false, error: 'INVALID_URL' }
+  }
+
+  return { ok: true, url }
+}
+
 /**
  * POST /api/proxy-audio
  *
@@ -46,28 +73,21 @@ export async function POST(req: NextRequest): Promise<Response> {
     return NextResponse.json({ error: '缺少音频 URL' }, { status: 400 })
   }
 
-  let inputUrl: URL
-  try {
-    inputUrl = new URL(audioUrl)
-  } catch {
+  const inputUrlResult = validateAndParseAudioUrl(audioUrl)
+  if (!inputUrlResult.ok) {
     cleanup()
-    return NextResponse.json({ error: '音频 URL 无效或不受支持' }, { status: 400 })
+    return NextResponse.json(
+      {
+        error:
+          inputUrlResult.error === 'PRIVATE_HOST'
+            ? '不支持访问本机或内网地址'
+            : '音频 URL 无效或不受支持',
+      },
+      { status: 400 }
+    )
   }
 
-  if (!['http:', 'https:'].includes(inputUrl.protocol)) {
-    cleanup()
-    return NextResponse.json({ error: '音频 URL 无效或不受支持' }, { status: 400 })
-  }
-
-  if (isPrivateHost(inputUrl.hostname)) {
-    cleanup()
-    return NextResponse.json({ error: '不支持访问本机或内网地址' }, { status: 400 })
-  }
-
-  if (!isAllowedAudioHost(inputUrl.hostname)) {
-    cleanup()
-    return NextResponse.json({ error: '音频 URL 无效或不受支持' }, { status: 400 })
-  }
+  let urlObj = inputUrlResult.url
 
   // 如果是 AList 播放页面，先解析真实音频 URL
   let fileName = ''
@@ -115,27 +135,21 @@ export async function POST(req: NextRequest): Promise<Response> {
     )
   }
 
-  let urlObj: URL
-  try {
-    urlObj = new URL(audioUrl)
-  } catch {
-    cleanup()
-    return NextResponse.json({ error: '音频 URL 无效或不受支持' }, { status: 400 })
-  }
-
-  if (!['http:', 'https:'].includes(urlObj.protocol)) {
-    cleanup()
-    return NextResponse.json({ error: '音频 URL 无效或不受支持' }, { status: 400 })
-  }
-
-  if (!isAllowedAudioHost(urlObj.hostname)) {
-    cleanup()
-    return NextResponse.json({ error: '音频 URL 无效或不受支持' }, { status: 400 })
-  }
-
-  if (isPrivateHost(urlObj.hostname)) {
-    cleanup()
-    return NextResponse.json({ error: '不支持访问本机或内网地址' }, { status: 400 })
+  if (isAlistPage) {
+    const resolvedUrlResult = validateAndParseAudioUrl(audioUrl)
+    if (!resolvedUrlResult.ok) {
+      cleanup()
+      return NextResponse.json(
+        {
+          error:
+            resolvedUrlResult.error === 'PRIVATE_HOST'
+              ? '不支持访问本机或内网地址'
+              : '音频 URL 无效或不受支持',
+        },
+        { status: 400 }
+      )
+    }
+    urlObj = resolvedUrlResult.url
   }
 
   // 从 URL 提取文件名（如果还没有）
