@@ -133,6 +133,20 @@ export async function POST(req: NextRequest): Promise<Response> {
     }
   }
 
+  const fileExtension = (() => {
+    const normalized = fileName.trim().toLowerCase()
+    const dotIndex = normalized.lastIndexOf('.')
+    if (dotIndex === -1 || dotIndex === normalized.length - 1) return ''
+    return normalized.slice(dotIndex + 1)
+  })()
+  if (fileExtension === 'wma') {
+    cleanup()
+    return NextResponse.json(
+      { error: '不支持 WMA 格式，请转换为 mp3/wav/m4a/flac/ogg/webm/aac' },
+      { status: 400 }
+    )
+  }
+
   let audioResponse: Response
   try {
     audioResponse = await fetch(audioUrl, {
@@ -170,6 +184,16 @@ export async function POST(req: NextRequest): Promise<Response> {
 
   // 验证 Content-Type
   const contentTypeHeader = (audioResponse.headers.get('content-type') || '').split(';')[0].trim()
+  const normalizedContentTypeHeader = contentTypeHeader.toLowerCase()
+  if (
+    normalizedContentTypeHeader === 'audio/x-ms-wma' ||
+    normalizedContentTypeHeader === 'audio/wma'
+  ) {
+    return NextResponse.json(
+      { error: '不支持 WMA 格式，请转换为 mp3/wav/m4a/flac/ogg/webm/aac' },
+      { status: 400 }
+    )
+  }
   const mimeFromUrl = getAudioMimeType(audioUrl)
   const isAudio =
     (contentTypeHeader && contentTypeHeader.startsWith('audio/')) ||

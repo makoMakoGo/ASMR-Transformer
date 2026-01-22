@@ -117,15 +117,30 @@ export async function POST(request: NextRequest) {
     const fileSize = resolvedSize ?? (Number.isFinite(parsedLength) ? Math.trunc(parsedLength) : 0)
 
     // Validate content type (should be audio)
+    const normalizedContentType = contentType.split(';')[0].trim().toLowerCase()
     const fileExtension = (() => {
       const normalized = fileName.trim().toLowerCase()
       const dotIndex = normalized.lastIndexOf('.')
       if (dotIndex === -1 || dotIndex === normalized.length - 1) return ''
       return normalized.slice(dotIndex + 1)
     })()
+    if (
+      fileExtension === 'wma' ||
+      normalizedContentType === 'audio/x-ms-wma' ||
+      normalizedContentType === 'audio/wma'
+    ) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: '不支持 WMA 格式，请转换为 mp3/wav/m4a/flac/ogg/webm/aac',
+        },
+        { status: 400 }
+      )
+    }
+
     const hasAllowedExtension = !!fileExtension && allowedAudioExtensions.includes(fileExtension)
     const isAudio =
-      contentType.startsWith('audio/') ||
+      normalizedContentType.startsWith('audio/') ||
       contentType.includes('octet-stream') ||
       hasAllowedExtension
 
