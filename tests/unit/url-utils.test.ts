@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 
-import { isAllowedAudioHost, isPrivateHost, isValidAudioUrl } from '@/lib/url-utils'
+import { isAllowedAudioHost, isPrivateHost, isValidAudioUrl, validateAndParseAudioUrl } from '@/lib/url-utils'
 
 describe('isPrivateHost', () => {
   it('识别常见私网/回环/链路本地地址', () => {
@@ -62,5 +62,36 @@ describe('isValidAudioUrl', () => {
     expect(isValidAudioUrl('https://asmr.121231234.xyz/asmr/x.mp3?sign=abc')).toBe(true)
     expect(isValidAudioUrl('https://example.com/x.mp3')).toBe(false)
     expect(isValidAudioUrl('https://www.asmrgay.com/asmr/x')).toBe(false)
+  })
+})
+
+describe('validateAndParseAudioUrl', () => {
+  it('返回更细粒度错误码', () => {
+    expect(validateAndParseAudioUrl('not-a-url')).toEqual({ ok: false, error: 'INVALID_URL' })
+    expect(validateAndParseAudioUrl('ftp://www.asmrgay.com/x.mp3')).toEqual({
+      ok: false,
+      error: 'UNSUPPORTED_PROTOCOL',
+    })
+    expect(validateAndParseAudioUrl('http://127.0.0.1/x.mp3')).toEqual({
+      ok: false,
+      error: 'PRIVATE_HOST',
+    })
+    expect(validateAndParseAudioUrl('https://example.com/x.mp3')).toEqual({
+      ok: false,
+      error: 'HOST_NOT_ALLOWED',
+    })
+  })
+
+  it('可选强制音频扩展名', () => {
+    expect(validateAndParseAudioUrl('https://www.asmrgay.com/asmr/x', { requireAudioExtension: false }).ok).toBe(
+      true
+    )
+    expect(validateAndParseAudioUrl('https://www.asmrgay.com/asmr/x', { requireAudioExtension: true })).toEqual({
+      ok: false,
+      error: 'MISSING_AUDIO_EXTENSION',
+    })
+    expect(
+      validateAndParseAudioUrl('https://www.asmrgay.com/d/asmr/x.mp3?sign=abc', { requireAudioExtension: true }).ok
+    ).toBe(true)
   })
 })
