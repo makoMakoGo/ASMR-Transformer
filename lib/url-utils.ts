@@ -1,4 +1,4 @@
-const AUDIO_EXTENSIONS = ['mp3', 'wav', 'm4a', 'flac', 'ogg', 'webm', 'aac']
+const AUDIO_EXTENSIONS = ['mp3', 'wav', 'm4a', 'flac', 'ogg', 'webm', 'aac', 'wma']
 const ALLOWED_AUDIO_HOSTS: Array<{ host: string; allowSubdomains: boolean }> = [
   { host: 'asmrgay.com', allowSubdomains: true },
   { host: 'asmr.pw', allowSubdomains: true },
@@ -16,6 +16,7 @@ const MIME_MAP: Record<string, string> = {
   ogg: 'audio/ogg',
   webm: 'audio/webm',
   aac: 'audio/aac',
+  wma: 'audio/x-ms-wma',
 }
 
 const MIME_TO_EXTENSION: Record<string, string> = Object.entries(MIME_MAP).reduce(

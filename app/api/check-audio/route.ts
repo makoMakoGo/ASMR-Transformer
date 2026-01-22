@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { isAlistPageUrl, resolveAlistUrl } from '@/lib/alist-utils'
-import { validateAndParseAudioUrl } from '@/lib/url-utils'
+import { allowedAudioExtensions, validateAndParseAudioUrl } from '@/lib/url-utils'
 
 export async function POST(request: NextRequest) {
   let body: Record<string, unknown>
@@ -117,10 +117,17 @@ export async function POST(request: NextRequest) {
     const fileSize = resolvedSize ?? (Number.isFinite(parsedLength) ? Math.trunc(parsedLength) : 0)
 
     // Validate content type (should be audio)
+    const fileExtension = (() => {
+      const normalized = fileName.trim().toLowerCase()
+      const dotIndex = normalized.lastIndexOf('.')
+      if (dotIndex === -1 || dotIndex === normalized.length - 1) return ''
+      return normalized.slice(dotIndex + 1)
+    })()
+    const hasAllowedExtension = !!fileExtension && allowedAudioExtensions.includes(fileExtension)
     const isAudio =
       contentType.startsWith('audio/') ||
       contentType.includes('octet-stream') ||
-      /\.(mp3|wav|m4a|flac|ogg|aac|wma)$/i.test(fileName)
+      hasAllowedExtension
 
     if (!isAudio) {
       return NextResponse.json(

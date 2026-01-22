@@ -60,6 +60,7 @@ describe('isValidAudioUrl', () => {
   it('仅允许白名单域名 + 音频扩展名', () => {
     expect(isValidAudioUrl('https://www.asmrgay.com/d/asmr/x.mp3?sign=abc')).toBe(true)
     expect(isValidAudioUrl('https://asmr.121231234.xyz/asmr/x.mp3?sign=abc')).toBe(true)
+    expect(isValidAudioUrl('https://www.asmrgay.com/d/asmr/x.wma?sign=abc')).toBe(true)
     expect(isValidAudioUrl('https://example.com/x.mp3')).toBe(false)
     expect(isValidAudioUrl('https://www.asmrgay.com/asmr/x')).toBe(false)
   })
