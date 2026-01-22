@@ -1,4 +1,4 @@
-<h1 align="center">🎙️ ASMR Transformer</h1>
+<h1 align="center">ASMR Transformer</h1>
 
 <p align="center">
   <img src="public/logo.png" alt="ASMR Transformer Logo" width="120"/>
@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <em>最终是想要 <a href="https://space.bilibili.com/285286947">橘鸦Juya</a> 音色来搞定制化 ASMR，想想牛牛就硬硬的 🥵🥵🥵</em>
+  <em> 简洁优雅的ASMR转录与润色工具 🥵🥵🥵</em>
 </p>
 
 <p align="center">
@@ -30,18 +30,20 @@
 
 ---
 
-![界面预览](docs/images/image-1.png)
+<p align="center">
+  <img src="docs/images/UI.png" alt="界面预览" width="600" />
+</p>
 
 ## ✨ 特性
 
-一款简洁优雅的语音识别与文本润色工具，采用 Apple 风格设计，支持音频文件上传、从 asmrgay.com 及备用站在线导入/下载音频。
+一款简洁优雅的语音识别与文本润色工具，支持音频文件上传、从 [asmrgay.com](https://www.asmrgay.com) 及备用站在线导入/下载音频。
 
-- **🎤 语音识别** - 支持上传音频文件或粘贴 asmrgay.com 及备用站 URL，调用硅基流动 ASR API 进行高精度语音转文字
+- **🎤 语音识别** - 支持上传音频文件或粘贴 [asmrgay.com](https://www.asmrgay.com) 及备用站 URL，调用硅基流动 ASR API 进行高精度语音转文字
 - **✨ 智能润色** - 支持 OpenAI 兼容 LLM 润色，自动纠错、添加标点、分段排版（不再内置免费 Key）
 - **🎯 自定义润色指令** - 可自定义润色规则，适配不同场景（会议记录、采访整理、翻译等）
 - **💾 设置持久化** - 默认从服务器 `.env` 读取，WebUI 修改后点击「保存」写回 `.env`
 - **📊 实时进度** - 详细的上传进度、处理状态和运行日志
-- **🍎 Apple 风格 UI** - 圆润卡片、毛玻璃效果、流畅动画，简洁美观
+- **🎨 清新蓝调 UI** - 匹配 Logo 的蓝色调配色，圆润卡片、流畅动画
 
 ## 🚀 部署方式
 
@@ -148,7 +150,7 @@ cp .env.example .env
 │   │   ├── check-audio/route.ts   # 检查在线音频元信息（支持 AList 播放页面解析）
 │   │   ├── proxy-audio/route.ts   # 流式代理在线音频（前端显示下载进度）
 │   │   └── settings/route.ts      # WebUI 设置读写（写入 .env）
-│   ├── globals.css           # 全局样式（Apple 设计系统）
+│   ├── globals.css           # 全局样式（清新蓝调设计系统）
 │   ├── layout.tsx            # 根布局
 │   └── page.tsx              # 主页面组件
 ├── lib/

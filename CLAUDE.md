@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-语音转文字工具 - 一款基于 Next.js 16 的 Web 应用，提供音频文件上传、ASR 语音识别、LLM 文本润色功能。采用暖奶油色极简设计，支持设置持久化。
+语音转文字工具 - 一款基于 Next.js 16 的 Web 应用，提供音频文件上传、ASR 语音识别、LLM 文本润色功能。采用清新蓝调极简设计（匹配 Logo），支持设置持久化。
 
 **Tech Stack**: Next.js 16 (App Router) + TypeScript 5.7 + React 19 + Tailwind CSS 3.4
 
@@ -30,7 +30,7 @@ app/
 ├── api/polish/route.ts        # LLM 文本润色（SSE 流式）
 ├── api/proxy-audio/route.ts   # 流式代理在线音频（返回二进制流，前端显示下载进度）
 ├── api/check-audio/route.ts   # 检查在线音频元信息（支持 AList 播放页面解析）
-├── globals.css            # 暖奶油色设计系统（CSS 变量、动画）
+├── globals.css            # 清新蓝调设计系统（CSS 变量、动画）
 ├── layout.tsx             # Root layout with metadata
 └── page.tsx               # Main UI (5-Tab 布局：来源/转录结果/润色输出/设置/日志)
 lib/
@@ -71,8 +71,8 @@ lib/
 - Accepts `customInstructions` for user-side instructions
 - Temperature: 0.3 for consistent output
 
-**app/globals.css** - 暖奶油色设计系统:
-- CSS variables for warm cream/beige palette (HSL format)
+**app/globals.css** - 清新蓝调设计系统:
+- CSS variables for blue-toned palette (HSL format, 210° hue)
 - Light/dark mode support
 - Custom animations (fade-in, slide-in, ai-dot-bounce)
 - Smooth scrollbar styling
@@ -133,7 +133,7 @@ The transcription process has unified status tracking (same for local and remote
 
 ### Styling
 - Tailwind CSS utility classes only
-- Warm cream palette via CSS variables (--background, --primary, etc.)
+- Blue-toned palette via CSS variables (--background, --primary, etc.)
 - HSL color format: `hsl(var(--primary))`
 - No CSS modules or styled-components
 

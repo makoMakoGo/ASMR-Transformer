@@ -834,7 +834,7 @@ export default function Home() {
                       {checking ? '检查中...' : '检查'}
                     </button>
                   </div>
-                  <p className="text-xs text-muted-foreground">支持 asmrgay.com 及备用站点的播放页面或直链</p>
+                  <p className="text-xs text-muted-foreground">支持 <a href="https://www.asmrgay.com" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">asmrgay.com</a> 及备用站点的播放页面或直链</p>
                 </div>
 
                 {/* Selected Audio Display (unified - always visible) */}
@@ -1064,7 +1064,10 @@ export default function Home() {
 
                 {/* ASR Config */}
                 <div>
-                  <h2 className="text-sm font-medium text-foreground mb-3">语音识别配置 (ASR)</h2>
+                  <h2 className="text-sm font-medium text-foreground mb-3">
+                    语音识别配置 (ASR)
+                    <a href="https://siliconflow.cn" target="_blank" rel="noopener noreferrer" className="ml-2 text-xs text-primary hover:underline font-normal">SiliconFlow 官网 ↗</a>
+                  </h2>
                   <div className="space-y-3">
                     {/* 第一行：API URL 和 Model 并排（6:4）*/}
                     <div className="flex gap-3">
@@ -1110,7 +1113,10 @@ export default function Home() {
 
                   {/* LLM Config */}
                 <div>
-                  <h2 className="text-sm font-medium text-foreground mb-3">文本润色配置 (LLM · OpenAI 兼容)</h2>
+                  <h2 className="text-sm font-medium text-foreground mb-3">
+                    文本润色配置 (LLM · OpenAI 兼容)
+                    <a href="https://juya.owl.ci" target="_blank" rel="noopener noreferrer" className="ml-2 text-xs text-primary hover:underline font-normal">juya.owl.ci ↗</a>
+                  </h2>
                   <div className="space-y-3">
                     {/* 第一行：API URL 和模型并排（6:4）*/}
                     <div className="flex gap-3">
@@ -1231,7 +1237,10 @@ export default function Home() {
         {/* Footer */}
         <footer className="text-center py-6 mt-6">
           <p className="text-xs text-muted-foreground">
-            Powered by SiliconFlow ASR & DeepSeek LLM
+            Powered by{' '}
+            <a href="https://siliconflow.cn" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">SiliconFlow</a>
+            {' & '}
+            <a href="https://www.asmrgay.com" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">ASMR-Gay</a>
           </p>
         </footer>
       </div>
