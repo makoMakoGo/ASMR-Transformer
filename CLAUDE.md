@@ -35,7 +35,7 @@ app/
 └── page.tsx               # Main UI (5-Tab 布局：来源/转录结果/润色输出/设置/日志)
 lib/
 ├── alist-utils.ts         # AList 站点检测和 URL 解析（共享工具）
-└── url-utils.ts           # URL 处理工具函数
+└── url-utils.ts           # URL 校验/白名单/私网拦截/扩展名 MIME 映射
 ```
 
 ### Key Components
@@ -52,6 +52,12 @@ lib/
 - AList 解析后的真实下载域名可能为: asmr.121231234.xyz（仅该 host，不允许子域）
 - `isAlistPageUrl()` - 检测播放页面 URL（非 /d/ 路径）
 - `resolveAlistUrl()` - 调用 AList `/api/fs/get` 获取真实音频 URL
+
+**lib/url-utils.ts** - URL 校验与白名单:
+- `validateAndParseAudioUrl()` - 统一 URL 解析/协议/私网/白名单/可选扩展名校验
+- `isPrivateHost()` - 私网/回环/链路本地拦截
+- `isAllowedAudioHost()` - 域名白名单
+- `getAudioMimeType()` - 扩展名 → MIME
 
 **app/api/check-audio/route.ts** - 检查在线音频:
 - 支持 AList 播放页面自动解析（调用 AList API 获取真实 URL）

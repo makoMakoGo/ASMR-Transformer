@@ -156,7 +156,7 @@ cp .env.example .env
 ├── lib/
 │   ├── alist-utils.ts        # AList 解析工具
 │   ├── env-file.ts           # .env 读写工具（WebUI 保存设置）
-│   └── url-utils.ts          # URL/域名白名单/私网拦截/扩展名 MIME 映射
+│   └── url-utils.ts          # URL 校验/白名单/私网拦截/扩展名 MIME 映射
 ├── docs/images/              # 图片资源
 ├── tests/                    # 测试文件
 │   ├── fixtures/             # 测试资源
