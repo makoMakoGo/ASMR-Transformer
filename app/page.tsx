@@ -296,6 +296,7 @@ export default function Home() {
       const decoder = new TextDecoder()
       let fullContent = ''
       let buffer = ''
+      let finishReason: string | null = null
 
       const handleLine = (rawLine: string) => {
         const line = rawLine.trimEnd()
@@ -305,10 +306,15 @@ export default function Home() {
 
         try {
           const parsed = JSON.parse(data)
-          const content = parsed.choices?.[0]?.delta?.content || ''
+          const choice = parsed.choices?.[0]
+          const content = choice?.delta?.content || ''
           if (content) {
             fullContent += content
             setPolishedResult(fullContent)
+          }
+          // 捕获 finish_reason（最后一个 chunk 会包含）
+          if (choice?.finish_reason) {
+            finishReason = choice.finish_reason
           }
         } catch {
         }
@@ -330,7 +336,17 @@ export default function Home() {
       }
 
       if (fullContent) {
-        addLog(`润色完成! 文本长度: ${fullContent.length} 字符`, 'success')
+        // 根据 finish_reason 给出不同的日志
+        if (finishReason === 'content_filter') {
+          addLog(`润色被截断: 内容触发安全过滤 (已输出 ${fullContent.length} 字符)`, 'warning')
+        } else if (finishReason === 'length') {
+          addLog(`润色被截断: 达到最大长度限制 (已输出 ${fullContent.length} 字符)`, 'warning')
+        } else if (finishReason === 'stop') {
+          addLog(`润色完成! 文本长度: ${fullContent.length} 字符`, 'success')
+        } else {
+          // 未知或无 finish_reason
+          addLog(`润色结束 (finish_reason=${finishReason ?? '未知'}), 文本长度: ${fullContent.length} 字符`, 'info')
+        }
       } else {
         addLog('润色完成但无内容返回', 'warning')
       }
