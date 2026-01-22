@@ -23,15 +23,26 @@ const MAX_AUDIO_BYTES = getFetchAudioMaxBytes()
  * - 失败：JSON 错误信息
  */
 export async function POST(req: NextRequest): Promise<Response> {
+  // 创建超时 signal 并与客户端断开 signal 合并
+  // 客户端刷新/关闭页面时，req.signal 会 abort，同时中止所有外部请求
+  const timeoutController = new AbortController()
+  const timeoutId = setTimeout(() => timeoutController.abort(), FETCH_TIMEOUT_MS)
+  const combinedSignal = AbortSignal.any([req.signal, timeoutController.signal])
+
+  // 清理函数
+  const cleanup = () => clearTimeout(timeoutId)
+
   let body: Record<string, unknown> | null = null
   try {
     body = await req.json()
   } catch {
+    cleanup()
     return NextResponse.json({ error: '请求体必须为 JSON' }, { status: 400 })
   }
 
   let audioUrl = String(body?.url || '').trim()
   if (!audioUrl) {
+    cleanup()
     return NextResponse.json({ error: '缺少音频 URL' }, { status: 400 })
   }
 
@@ -39,18 +50,22 @@ export async function POST(req: NextRequest): Promise<Response> {
   try {
     inputUrl = new URL(audioUrl)
   } catch {
+    cleanup()
     return NextResponse.json({ error: '音频 URL 无效或不受支持' }, { status: 400 })
   }
 
   if (!['http:', 'https:'].includes(inputUrl.protocol)) {
+    cleanup()
     return NextResponse.json({ error: '音频 URL 无效或不受支持' }, { status: 400 })
   }
 
   if (isPrivateHost(inputUrl.hostname)) {
+    cleanup()
     return NextResponse.json({ error: '不支持访问本机或内网地址' }, { status: 400 })
   }
 
   if (!isAllowedAudioHost(inputUrl.hostname)) {
+    cleanup()
     return NextResponse.json({ error: '音频 URL 无效或不受支持' }, { status: 400 })
   }
 
@@ -59,6 +74,7 @@ export async function POST(req: NextRequest): Promise<Response> {
   let resolvedFileSize: number | undefined
   const isAlistPage = isAlistPageUrl(audioUrl)
   if (!isAlistPage && !isValidAudioUrl(audioUrl)) {
+    cleanup()
     return NextResponse.json({ error: '音频 URL 无效或不受支持' }, { status: 400 })
   }
 
@@ -66,21 +82,29 @@ export async function POST(req: NextRequest): Promise<Response> {
     try {
       const result = await resolveAlistUrl(
         audioUrl,
-        (fetchUrl, init) => fetch(fetchUrl, init),
+        (fetchUrl, init) =>
+          fetch(fetchUrl, { ...init, signal: combinedSignal }),
         DEFAULT_USER_AGENT
       )
       audioUrl = result.rawUrl
       fileName = result.fileName
       resolvedFileSize = result.fileSize
     } catch (error) {
+      cleanup()
+      const errMsg = (error as Error).message
+      // 区分客户端断开和其他错误
+      if ((error as Error).name === 'AbortError') {
+        return NextResponse.json({ error: '请求已取消' }, { status: 499 })
+      }
       return NextResponse.json(
-        { error: `解析播放页面失败: ${(error as Error).message}` },
+        { error: `解析播放页面失败: ${errMsg}` },
         { status: 400 }
       )
     }
   }
 
   if (typeof resolvedFileSize === 'number' && resolvedFileSize > MAX_AUDIO_BYTES) {
+    cleanup()
     const maxMB = Math.round(MAX_AUDIO_BYTES / (1024 * 1024))
     return NextResponse.json(
       { error: `音频文件过大，超过 ${maxMB}MB 限制` },
@@ -92,18 +116,22 @@ export async function POST(req: NextRequest): Promise<Response> {
   try {
     urlObj = new URL(audioUrl)
   } catch {
+    cleanup()
     return NextResponse.json({ error: '音频 URL 无效或不受支持' }, { status: 400 })
   }
 
   if (!['http:', 'https:'].includes(urlObj.protocol)) {
+    cleanup()
     return NextResponse.json({ error: '音频 URL 无效或不受支持' }, { status: 400 })
   }
 
   if (!isAllowedAudioHost(urlObj.hostname)) {
+    cleanup()
     return NextResponse.json({ error: '音频 URL 无效或不受支持' }, { status: 400 })
   }
 
   if (isPrivateHost(urlObj.hostname)) {
+    cleanup()
     return NextResponse.json({ error: '不支持访问本机或内网地址' }, { status: 400 })
   }
 
@@ -117,23 +145,24 @@ export async function POST(req: NextRequest): Promise<Response> {
     }
   }
 
-  const abortController = new AbortController()
-  const timeoutId = setTimeout(() => abortController.abort(), FETCH_TIMEOUT_MS)
-
   let audioResponse: Response
   try {
     audioResponse = await fetch(audioUrl, {
       method: 'GET',
       redirect: 'follow',
-      signal: abortController.signal,
+      signal: combinedSignal,
       headers: {
         'User-Agent': DEFAULT_USER_AGENT,
         Referer: urlObj.origin,
       },
     })
   } catch (error) {
-    clearTimeout(timeoutId)
+    cleanup()
     if ((error as Error).name === 'AbortError') {
+      // 区分超时和客户端断开
+      if (req.signal.aborted) {
+        return NextResponse.json({ error: '请求已取消' }, { status: 499 })
+      }
       return NextResponse.json({ error: '连接超时，请稍后重试' }, { status: 504 })
     }
     return NextResponse.json(
@@ -142,7 +171,7 @@ export async function POST(req: NextRequest): Promise<Response> {
     )
   }
 
-  clearTimeout(timeoutId)
+  cleanup()
 
   if (!audioResponse.ok) {
     return NextResponse.json(
@@ -197,13 +226,18 @@ export async function POST(req: NextRequest): Promise<Response> {
     headers.set('Content-Length', contentLength)
   }
 
+  // 监听客户端断开，中止流传输
   let bytesRead = 0
   const limitedStream = audioResponse.body.pipeThrough(
     new TransformStream<Uint8Array, Uint8Array>({
       transform(chunk, controller) {
+        // 检查客户端是否已断开
+        if (req.signal.aborted) {
+          controller.error(new Error('CLIENT_DISCONNECTED'))
+          return
+        }
         bytesRead += chunk.byteLength
         if (bytesRead > MAX_AUDIO_BYTES) {
-          abortController.abort()
           controller.error(new Error('MAX_AUDIO_BYTES_EXCEEDED'))
           return
         }

@@ -65,11 +65,13 @@ lib/
 - 流式返回音频二进制数据（不存磁盘，全程内存）
 - 响应头尽可能包含 Content-Length（源站提供时，前端可显示下载进度）和 X-File-Name
 - 最大文件限制: 100MB（可通过 `FETCH_AUDIO_MAX_BYTES` 环境变量配置）
+- **客户端断开即中止**：使用 `req.signal` + `AbortSignal.any()` 监听客户端断开，刷新/关闭页面时立即中止外部请求
 
 **app/api/polish/route.ts** - LLM 文本润色:
 - Proxies requests to LLM API (OpenAI-compatible chat completion)
 - Accepts `customInstructions` for user-side instructions
 - Temperature: 0.3 for consistent output
+- **客户端断开即中止**：使用 `req.signal` 监听客户端断开，刷新/关闭页面时立即中止 LLM API 调用
 
 **app/globals.css** - 清新蓝调设计系统:
 - CSS variables for blue-toned palette (HSL format, 210° hue)

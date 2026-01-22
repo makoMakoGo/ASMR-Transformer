@@ -29,9 +29,11 @@ export async function POST(req: NextRequest) {
     const trimmedApiKey = typeof apiKey === 'string' ? apiKey.trim() : ''
     if (trimmedApiKey) headers.Authorization = `Bearer ${trimmedApiKey}`
 
+    // 使用 req.signal：客户端断开（刷新/关闭页面）时自动中止外部请求
     const response = await fetch(fullUrl, {
       method: 'POST',
       headers,
+      signal: req.signal,
       body: JSON.stringify({
         model,
         messages: [
