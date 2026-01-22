@@ -1,7 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { isAlistPageUrl, resolveAlistUrl } from '@/lib/alist-utils'
 import { getFetchAudioMaxBytes } from '@/lib/runtime-config'
-import { getAudioMimeType, isAllowedAudioHost, isPrivateHost, isValidAudioUrl } from '@/lib/url-utils'
+import {
+  allowedAudioExtensions,
+  getAudioMimeType,
+  getExtensionFromUrl,
+  isAllowedAudioHost,
+  isPrivateHost,
+} from '@/lib/url-utils'
 
 export const runtime = 'nodejs'
 
@@ -13,7 +19,10 @@ type AudioUrlValidationResult =
   | { ok: true; url: URL }
   | { ok: false; error: 'INVALID_URL' | 'PRIVATE_HOST' }
 
-const validateAndParseAudioUrl = (input: string): AudioUrlValidationResult => {
+const validateAndParseAudioUrl = (
+  input: string,
+  options: { requireAudioExtension?: boolean } = {}
+): AudioUrlValidationResult => {
   let url: URL
   try {
     url = new URL(input)
@@ -31,6 +40,13 @@ const validateAndParseAudioUrl = (input: string): AudioUrlValidationResult => {
 
   if (!isAllowedAudioHost(url.hostname)) {
     return { ok: false, error: 'INVALID_URL' }
+  }
+
+  if (options.requireAudioExtension) {
+    const ext = getExtensionFromUrl(input)
+    if (!ext || !allowedAudioExtensions.includes(ext)) {
+      return { ok: false, error: 'INVALID_URL' }
+    }
   }
 
   return { ok: true, url }
@@ -73,7 +89,10 @@ export async function POST(req: NextRequest): Promise<Response> {
     return NextResponse.json({ error: '缺少音频 URL' }, { status: 400 })
   }
 
-  const inputUrlResult = validateAndParseAudioUrl(audioUrl)
+  const isAlistPage = isAlistPageUrl(audioUrl)
+  const inputUrlResult = validateAndParseAudioUrl(audioUrl, {
+    requireAudioExtension: !isAlistPage,
+  })
   if (!inputUrlResult.ok) {
     cleanup()
     return NextResponse.json(
@@ -92,11 +111,6 @@ export async function POST(req: NextRequest): Promise<Response> {
   // 如果是 AList 播放页面，先解析真实音频 URL
   let fileName = ''
   let resolvedFileSize: number | undefined
-  const isAlistPage = isAlistPageUrl(audioUrl)
-  if (!isAlistPage && !isValidAudioUrl(audioUrl)) {
-    cleanup()
-    return NextResponse.json({ error: '音频 URL 无效或不受支持' }, { status: 400 })
-  }
 
   if (isAlistPage) {
     try {
