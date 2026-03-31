@@ -21,7 +21,12 @@ type Settings = {
   customInstructions: string
 }
 
-const getEnvFilePath = () => path.resolve(process.cwd(), process.env.APP_SETTINGS_ENV_FILE || '.env')
+const getEnvFilePath = () => {
+  // This route intentionally reads/writes a runtime-selected env file.
+  // Tell Turbopack not to over-trace the whole project from this dynamic path.
+  const configuredEnvFile = /* turbopackIgnore: true */ process.env.APP_SETTINGS_ENV_FILE || '.env'
+  return path.resolve(/* turbopackIgnore: true */ process.cwd(), configuredEnvFile)
+}
 
 const toSettings = (env: EnvMap): Settings => ({
   apiKey: env.ASR_API_KEY ?? '',
