@@ -76,6 +76,22 @@ git commit -m "📝 docs: 更新部署文档"
 - 使用 Tailwind CSS 进行样式开发
 - 遵循 `CLAUDE.md` 中的代码规范
 
+## 🔐 依赖维护
+
+建议在提交依赖更新前做一次基础检查：
+
+```bash
+# 检查已知安全公告
+npm audit
+
+# 在当前 semver 范围内自动修复可修复的漏洞
+npm audit fix
+
+# 刷新 browserslist / baseline-browser-mapping 数据
+# 解决构建时的浏览器基线数据过期提示
+npm update baseline-browser-mapping browserslist caniuse-lite
+```
+
 ## 💬 交流
 
 如有问题，欢迎提交 Issue 讨论！
