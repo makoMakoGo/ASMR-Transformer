@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react'
 import Image from 'next/image'
+import { DEFAULT_POLISH_INSTRUCTIONS } from '@/lib/polish-config'
 
 // 默认配置
 const DEFAULT_ASR_API_URL = 'https://api.siliconflow.cn/v1/audio/transcriptions'
@@ -9,9 +10,6 @@ const DEFAULT_ASR_MODEL = 'TeleAI/TeleSpeechASR'
 const DEFAULT_LLM_API_URL = 'https://juya.owl.ci/v1'
 const DEFAULT_LLM_MODEL = 'DeepSeek-V3.1-Terminus'
 const DEFAULT_FETCH_AUDIO_MAX_BYTES = 100 * 1024 * 1024
-const DEFAULT_INSTRUCTIONS =
-  '请对以下语音转文字内容进行处理：1. 纠正错别字和语法错误 2. 添加适当的标点符号 3. 分段排版使内容更易读 4. 保持原意不变，不要添加或删除内容'
-
 type Settings = {
   apiKey: string
   apiUrl: string
@@ -65,7 +63,7 @@ export default function Home() {
   const [llmApiUrl, setLlmApiUrl] = useState(DEFAULT_LLM_API_URL)
   const [llmModel, setLlmModel] = useState(DEFAULT_LLM_MODEL)
   const [llmApiKey, setLlmApiKey] = useState('')
-  const [customInstructions, setCustomInstructions] = useState(DEFAULT_INSTRUCTIONS)
+  const [customInstructions, setCustomInstructions] = useState(DEFAULT_POLISH_INSTRUCTIONS)
   const [settingsLoaded, setSettingsLoaded] = useState(false)
   const [envFilePath, setEnvFilePath] = useState('')
   const [envFileExists, setEnvFileExists] = useState(false)
@@ -85,7 +83,7 @@ export default function Home() {
     setLlmApiUrl(s.llmApiUrl || DEFAULT_LLM_API_URL)
     setLlmModel(s.llmModel || DEFAULT_LLM_MODEL)
     setLlmApiKey(s.llmApiKey || '')
-    setCustomInstructions(s.customInstructions || DEFAULT_INSTRUCTIONS)
+    setCustomInstructions(s.customInstructions || DEFAULT_POLISH_INSTRUCTIONS)
   }
 
   const reloadSettingsFromEnv = async (force = false) => {
@@ -274,7 +272,7 @@ export default function Home() {
           apiUrl: effectiveLlmApiUrl,
           apiKey: effectiveLlmApiKey || undefined,
           model: effectiveLlmModel,
-          customInstructions: customInstructions.trim() || DEFAULT_INSTRUCTIONS,
+          customInstructions: customInstructions.trim() || DEFAULT_POLISH_INSTRUCTIONS,
         }),
       })
 
@@ -1163,7 +1161,7 @@ export default function Home() {
                       <div className="flex items-center justify-between mb-1">
                         <label htmlFor="custom-instructions" className="block text-xs font-medium text-muted-foreground">润色指令</label>
                         <button
-                          onClick={() => setCustomInstructions(DEFAULT_INSTRUCTIONS)}
+                          onClick={() => setCustomInstructions(DEFAULT_POLISH_INSTRUCTIONS)}
                           className="text-xs text-primary hover:text-primary/80 font-medium cursor-pointer transition-colors"
                           aria-label="恢复默认润色指令"
                         >

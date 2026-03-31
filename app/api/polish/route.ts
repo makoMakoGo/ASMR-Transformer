@@ -1,12 +1,9 @@
 import { NextRequest } from 'next/server'
-
-// 固定的系统提示词，确保模型行为一致
-const FIXED_SYSTEM_PROMPT =
-  '你是一个专业的文字编辑助手。你的任务是对语音转文字的内容进行润色处理。请直接输出处理后的文本，不要有任何解释、前言或后语。'
-
-// 默认的处理指令
-const DEFAULT_INSTRUCTIONS =
-  '请对以下语音转文字内容进行处理：1. 纠正错别字和语法错误 2. 添加适当的标点符号 3. 分段排版使内容更易读 4. 保持原意不变，不要添加或删除内容'
+import {
+  buildChatCompletionsUrl,
+  DEFAULT_POLISH_INSTRUCTIONS,
+  FIXED_SYSTEM_PROMPT,
+} from '@/lib/polish-config'
 
 export async function POST(req: NextRequest) {
   try {
@@ -19,9 +16,9 @@ export async function POST(req: NextRequest) {
       })
     }
 
-    const instructions = customInstructions?.trim() || DEFAULT_INSTRUCTIONS
+    const instructions = customInstructions?.trim() || DEFAULT_POLISH_INSTRUCTIONS
     const userMessage = `${instructions}\n\n---\n\n${text}`
-    const fullUrl = `${apiUrl}/chat/completions`
+    const fullUrl = buildChatCompletionsUrl(apiUrl)
 
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
@@ -71,6 +68,12 @@ export async function POST(req: NextRequest) {
       },
     })
   } catch (e) {
+    if (e instanceof Error && e.name === 'AbortError' && req.signal.aborted) {
+      return new Response(JSON.stringify({ error: '请求已取消' }), {
+        status: 499,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    }
     const errorMsg = e instanceof Error ? e.message : String(e)
     return new Response(JSON.stringify({ error: errorMsg }), {
       status: 500,

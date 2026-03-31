@@ -51,7 +51,7 @@
 
 ```bash
 # 克隆项目
-git clone https://github.com/zhu-jl18/ASMR-Transformer.git
+git clone https://github.com/makoMakoGo/ASMR-Transformer.git
 cd ASMR-Transformer
 
 # 安装依赖
@@ -211,4 +211,4 @@ npm test
 
 ## 📄 License
 
-[MIT](LICENSE) © 2025 zhu-jl18
+[MIT](LICENSE) © 2025 makoMakoGo
