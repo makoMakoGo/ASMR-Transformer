@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import path from 'node:path'
 import { EnvMap, readEnvFile, writeEnvFile } from '@/lib/env-file'
+import { DEFAULT_POLISH_INSTRUCTIONS } from '@/lib/polish-config'
 
 export const runtime = 'nodejs'
 
@@ -8,9 +9,6 @@ const DEFAULT_ASR_API_URL = 'https://api.siliconflow.cn/v1/audio/transcriptions'
 const DEFAULT_ASR_MODEL = 'TeleAI/TeleSpeechASR'
 const DEFAULT_LLM_API_URL = 'https://juya.owl.ci/v1'
 const DEFAULT_LLM_MODEL = 'DeepSeek-V3.1-Terminus'
-const DEFAULT_INSTRUCTIONS =
-  '请对以下语音转文字内容进行处理：1. 纠正错别字和语法错误 2. 添加适当的标点符号 3. 分段排版使内容更易读 4. 保持原意不变，不要添加或删除内容'
-
 type Settings = {
   apiKey: string
   apiUrl: string
@@ -35,7 +33,7 @@ const toSettings = (env: EnvMap): Settings => ({
   llmApiUrl: env.LLM_API_URL ?? DEFAULT_LLM_API_URL,
   llmModel: env.LLM_MODEL ?? DEFAULT_LLM_MODEL,
   llmApiKey: env.LLM_API_KEY ?? '',
-  customInstructions: env.CUSTOM_INSTRUCTIONS ?? DEFAULT_INSTRUCTIONS,
+  customInstructions: env.CUSTOM_INSTRUCTIONS ?? DEFAULT_POLISH_INSTRUCTIONS,
 })
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -105,7 +103,7 @@ export async function PUT(req: NextRequest): Promise<NextResponse> {
     LLM_API_KEY: nextSettings.llmApiKey.trim(),
     LLM_API_URL: nextSettings.llmApiUrl.trim() || DEFAULT_LLM_API_URL,
     LLM_MODEL: nextSettings.llmModel.trim() || DEFAULT_LLM_MODEL,
-    CUSTOM_INSTRUCTIONS: nextSettings.customInstructions.trim() || DEFAULT_INSTRUCTIONS,
+    CUSTOM_INSTRUCTIONS: nextSettings.customInstructions.trim() || DEFAULT_POLISH_INSTRUCTIONS,
   }
 
   try {
