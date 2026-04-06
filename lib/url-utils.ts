@@ -18,14 +18,6 @@ const MIME_MAP: Record<string, string> = {
   aac: 'audio/aac',
 }
 
-const MIME_TO_EXTENSION: Record<string, string> = Object.entries(MIME_MAP).reduce(
-  (acc, [ext, mime]) => {
-    acc[mime] = ext
-    return acc
-  },
-  {} as Record<string, string>
-)
-
 export const allowedAudioExtensions = AUDIO_EXTENSIONS
 
 export const isAllowedAudioHost = (host: string): boolean => {
@@ -39,7 +31,6 @@ export const isAllowedAudioHost = (host: string): boolean => {
 const parseIpv4 = (host: string): [number, number, number, number] | null => {
   if (!/^\d{1,3}(\.\d{1,3}){3}$/.test(host)) return null
   const parts = host.split('.').map((p) => Number(p))
-  if (parts.length !== 4) return null
   if (parts.some((n) => !Number.isInteger(n) || n < 0 || n > 255)) return null
   return parts as [number, number, number, number]
 }
@@ -135,51 +126,9 @@ export const validateAndParseAudioUrl = (
   return { ok: true, url }
 }
 
-export const isValidAudioUrl = (input: string): boolean => {
-  const url = getUrlObject(input)
-  if (!url) return false
-
-  if (!['http:', 'https:'].includes(url.protocol)) return false
-
-  if (!isAllowedAudioHost(url.hostname)) return false
-
-  const ext = getExtensionFromUrl(input)
-
-  if (ext) {
-    return AUDIO_EXTENSIONS.includes(ext)
-  }
-
-  return false
-}
-
-export const extractFileName = (input: string): string => {
-  const url = getUrlObject(input)
-  if (!url) return 'audio-from-url'
-
-  let pathname = url.pathname
-  try {
-    pathname = decodeURIComponent(url.pathname)
-  } catch {
-    // keep original pathname if decode fails
-  }
-
-  const segments = pathname.split('/').filter(Boolean)
-  const last = segments.pop() || ''
-
-  if (!last) return 'audio-from-url'
-
-  const sanitized = last.split('?')[0].split('#')[0].trim()
-  return sanitized || 'audio-from-url'
-}
-
 export const getAudioMimeType = (input: string): string | null => {
   const ext = input.startsWith('http') ? getExtensionFromUrl(input) : input
   const normalizedExt = ext.replace('.', '').toLowerCase()
 
   return MIME_MAP[normalizedExt] || null
-}
-
-export const getExtensionFromMime = (mime: string): string | null => {
-  const cleanMime = mime.toLowerCase().split(';')[0].trim()
-  return MIME_TO_EXTENSION[cleanMime] || null
 }

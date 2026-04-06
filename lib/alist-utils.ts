@@ -6,31 +6,14 @@
 // AList 站点配置（支持自动解析播放页面）
 export const ALIST_SITES = [
   'asmrgay.com',
-  'www.asmrgay.com',
   'asmr.pw',
-  'www.asmr.pw',
   'asmr.loan',
-  'www.asmr.loan',
   'asmr.party',
-  'www.asmr.party',
   'asmr.stream',
-  'www.asmr.stream',
 ]
 
 const isAlistHost = (hostname: string): boolean =>
   ALIST_SITES.some((h) => hostname === h || hostname.endsWith(`.${h}`))
-
-/**
- * 检测 URL 是否属于已知的 AList 站点
- */
-export const isAlistSite = (url: string): boolean => {
-  try {
-    const parsed = new URL(url)
-    return isAlistHost(parsed.hostname)
-  } catch {
-    return false
-  }
-}
 
 /**
  * 检测是否为 AList 播放页面 URL（非 /d/ 开头的路径）
@@ -42,19 +25,6 @@ export const isAlistPageUrl = (url: string): boolean => {
     if (!isAlistHost(parsed.hostname)) return false
     // 播放页面路径不以 /d/ 开头
     return !parsed.pathname.startsWith('/d/')
-  } catch {
-    return false
-  }
-}
-
-/**
- * 检测是否为 AList 直链 URL（/d/ 开头的路径）
- */
-export const isAlistDirectUrl = (url: string): boolean => {
-  try {
-    const parsed = new URL(url)
-    if (!isAlistHost(parsed.hostname)) return false
-    return parsed.pathname.startsWith('/d/')
   } catch {
     return false
   }

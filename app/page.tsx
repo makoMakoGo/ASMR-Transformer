@@ -123,7 +123,7 @@ export default function Home() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(currentSettings),
       })
-      const data = await res.json().catch(() => ({}))
+      const data = await res.json()
       if (!res.ok || !data?.success || !data?.settings) throw new Error(data?.error || `HTTP ${res.status}`)
 
       const s = data.settings as Settings
@@ -200,13 +200,18 @@ export default function Home() {
     const loadRuntimeConfig = async () => {
       try {
         const res = await fetch('/api/runtime-config', { method: 'GET' })
-        const data = await res.json().catch(() => ({}))
-        const maxBytes = Number((data as { fetchAudioMaxBytes?: unknown })?.fetchAudioMaxBytes)
-        if (res.ok && Number.isFinite(maxBytes) && maxBytes > 0) {
-          setFetchAudioMaxBytes(Math.trunc(maxBytes))
+        const data = await res.json()
+        if (!res.ok) {
+          throw new Error(`HTTP ${res.status}`)
         }
-      } catch {
-        // ignore
+        const maxBytes = Number((data as { fetchAudioMaxBytes?: unknown })?.fetchAudioMaxBytes)
+        if (!Number.isFinite(maxBytes) || maxBytes <= 0) {
+          throw new Error('fetchAudioMaxBytes 无效')
+        }
+        setFetchAudioMaxBytes(Math.trunc(maxBytes))
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e)
+        addLog(`加载运行时配置失败，继续使用默认音频大小限制 ${formatFileSize(DEFAULT_FETCH_AUDIO_MAX_BYTES)}: ${msg}`, 'warning')
       }
     }
     loadRuntimeConfig()
@@ -280,13 +285,11 @@ export default function Home() {
       if (contentType.includes('application/json')) {
         const data = await res.json()
         addLog(`润色失败: ${data.error || JSON.stringify(data)}`, 'error')
-        setPolishing(false)
         return
       }
 
       if (!res.body) {
         addLog('润色失败: 无响应数据', 'error')
-        setPolishing(false)
         return
       }
 
@@ -314,7 +317,10 @@ export default function Home() {
           if (choice?.finish_reason) {
             finishReason = choice.finish_reason
           }
-        } catch {
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : String(e)
+          const snippet = data.length > 160 ? `${data.slice(0, 160)}...` : data
+          throw new Error(`润色响应解析失败: ${msg}; chunk=${snippet}`)
         }
       }
 
@@ -430,8 +436,15 @@ export default function Home() {
       setStatusMessage('正在识别语音...')
 
       if (response.ok) {
-        const text = (response.data.text as string) || ''
-        setResult(text || '转录完成但无文本返回')
+        const text = typeof response.data.text === 'string' ? response.data.text : ''
+        if (!text.trim()) {
+          setResult('错误: 识别服务未返回有效文本')
+          setStatus('error')
+          setStatusMessage('转录失败')
+          addLog(`转录失败: 识别服务未返回有效文本，原始响应: ${JSON.stringify(response.data)}`, 'error')
+          return
+        }
+        setResult(text)
         setStatus('done')
         setStatusMessage('转录完成')
         addLog(`转录成功! 文本长度: ${text.length} 字符`, 'success')

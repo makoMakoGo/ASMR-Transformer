@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 
-import { isAllowedAudioHost, isPrivateHost, isValidAudioUrl, validateAndParseAudioUrl } from '@/lib/url-utils'
+import { isAllowedAudioHost, isPrivateHost, validateAndParseAudioUrl } from '@/lib/url-utils'
 
 describe('isPrivateHost', () => {
   it('识别常见私网/回环/链路本地地址', () => {
@@ -53,16 +53,6 @@ describe('isAllowedAudioHost', () => {
 
   it('拒绝其它域名', () => {
     expect(isAllowedAudioHost('example.com')).toBe(false)
-  })
-})
-
-describe('isValidAudioUrl', () => {
-  it('仅允许白名单域名 + 音频扩展名', () => {
-    expect(isValidAudioUrl('https://www.asmrgay.com/d/asmr/x.mp3?sign=abc')).toBe(true)
-    expect(isValidAudioUrl('https://asmr.121231234.xyz/asmr/x.mp3?sign=abc')).toBe(true)
-    expect(isValidAudioUrl('https://www.asmrgay.com/d/asmr/x.wma?sign=abc')).toBe(false)
-    expect(isValidAudioUrl('https://example.com/x.mp3')).toBe(false)
-    expect(isValidAudioUrl('https://www.asmrgay.com/asmr/x')).toBe(false)
   })
 })
 
