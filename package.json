@@ -3,9 +3,9 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "dev": "next dev -H 127.0.0.1 -p 3045",
+    "dev": "NODE_USE_ENV_PROXY=1 next dev -H 127.0.0.1 -p 3045",
     "build": "next build",
-    "start": "next start -H 127.0.0.1 -p 3045",
+    "start": "NODE_USE_ENV_PROXY=1 next start -H 127.0.0.1 -p 3045",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:unit": "vitest run tests/unit",
