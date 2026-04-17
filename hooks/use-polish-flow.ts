@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { normalizeSettingsForStorage, type Settings } from '@/lib/app-settings'
 import { readJsonResponse, readResponseErrorMessage } from '@/lib/http-response'
 import {
@@ -24,10 +24,20 @@ export const usePolishFlow = ({
 }) => {
   const [result, setResult] = useState<PolishResult>(IDLE_POLISH_RESULT)
   const [copied, setCopied] = useState(false)
+  const abortRef = useRef<AbortController | null>(null)
 
   const polishing = result.kind === 'streaming'
 
+  useEffect(() => {
+    return () => {
+      abortRef.current?.abort()
+      abortRef.current = null
+    }
+  }, [])
+
   const resetPolish = () => {
+    abortRef.current?.abort()
+    abortRef.current = null
     setResult(IDLE_POLISH_RESULT)
     setCopied(false)
   }
@@ -37,6 +47,10 @@ export const usePolishFlow = ({
       addLog('无法润色: 缺少文本', 'error')
       return
     }
+
+    abortRef.current?.abort()
+    const controller = new AbortController()
+    abortRef.current = controller
 
     const effectiveSettings = normalizeSettingsForStorage(settings)
     setCopied(false)
@@ -53,6 +67,7 @@ export const usePolishFlow = ({
       const res = await fetch('/api/polish', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        signal: controller.signal,
         body: JSON.stringify({
           text,
           apiUrl: effectiveSettings.llmApiUrl,
@@ -104,7 +119,7 @@ export const usePolishFlow = ({
         } catch (e) {
           const msg = e instanceof Error ? e.message : String(e)
           const snippet = data.length > 160 ? `${data.slice(0, 160)}...` : data
-          throw new Error(`润色响应解析失败: ${msg}; chunk=${snippet}`)
+          addLog(`润色响应单块解析失败，已跳过: ${msg}; chunk=${snippet}`, 'warning')
         }
       }
 
@@ -139,9 +154,15 @@ export const usePolishFlow = ({
         addLog('润色完成但无内容返回', 'warning')
       }
     } catch (e) {
+      if (controller.signal.aborted) {
+        addLog('润色已取消', 'info')
+        return
+      }
       const errorMsg = e instanceof Error ? e.message : String(e)
       setResult({ kind: 'error', message: errorMsg })
       addLog(`润色请求失败: ${errorMsg}`, 'error')
+    } finally {
+      if (abortRef.current === controller) abortRef.current = null
     }
   }
 

@@ -21,6 +21,7 @@ export const useSettingsState = () => {
   const [envFileExists, setEnvFileExists] = useState(false)
   const savedSettingsRef = useRef<Settings | null>(null)
   const [savingSettings, setSavingSettings] = useState(false)
+  const savingSettingsRef = useRef(false)
   const [envSaveError, setEnvSaveError] = useState('')
   const [settingsLoadError, setSettingsLoadError] = useState('')
   const settingsInitRef = useRef(false)
@@ -67,7 +68,9 @@ export const useSettingsState = () => {
 
   const saveSettingsToEnv = async () => {
     if (!isDirty) return false
+    if (savingSettingsRef.current) return false
 
+    savingSettingsRef.current = true
     setSavingSettings(true)
     setEnvSaveError('')
 
@@ -87,6 +90,7 @@ export const useSettingsState = () => {
       setEnvSaveError(msg)
       return false
     } finally {
+      savingSettingsRef.current = false
       setSavingSettings(false)
     }
   }
