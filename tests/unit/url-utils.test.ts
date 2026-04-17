@@ -73,10 +73,13 @@ describe('validateAndParseAudioUrl', () => {
     })
   })
 
-  it('可选强制音频扩展名', () => {
-    expect(validateAndParseAudioUrl('https://www.asmrgay.com/asmr/x', { requireAudioExtension: false }).ok).toBe(
-      true
-    )
+  it('返回解析后的合法 URL，并在需要时拒绝缺失扩展名', () => {
+    const pageUrl = validateAndParseAudioUrl('https://www.asmrgay.com/asmr/x', { requireAudioExtension: false })
+    expect(pageUrl.ok).toBe(true)
+    if (!pageUrl.ok) throw new Error('expected page URL to parse successfully')
+    expect(pageUrl.url.href).toBe('https://www.asmrgay.com/asmr/x')
+    expect(pageUrl.url.hostname).toBe('www.asmrgay.com')
+
     expect(validateAndParseAudioUrl('https://www.asmrgay.com/asmr/x', { requireAudioExtension: true })).toEqual({
       ok: false,
       error: 'MISSING_AUDIO_EXTENSION',
@@ -87,8 +90,13 @@ describe('validateAndParseAudioUrl', () => {
       ok: false,
       error: 'MISSING_AUDIO_EXTENSION',
     })
-    expect(
-      validateAndParseAudioUrl('https://www.asmrgay.com/d/asmr/x.mp3?sign=abc', { requireAudioExtension: true }).ok
-    ).toBe(true)
+
+    const directUrl = validateAndParseAudioUrl('https://www.asmrgay.com/d/asmr/x.mp3?sign=abc', {
+      requireAudioExtension: true,
+    })
+    expect(directUrl.ok).toBe(true)
+    if (!directUrl.ok) throw new Error('expected direct audio URL to parse successfully')
+    expect(directUrl.url.href).toBe('https://www.asmrgay.com/d/asmr/x.mp3?sign=abc')
+    expect(directUrl.url.searchParams.get('sign')).toBe('abc')
   })
 })

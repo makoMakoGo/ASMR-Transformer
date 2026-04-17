@@ -65,7 +65,7 @@ export const stringifyEnvValue = (value: string): string => {
 }
 
 export const upsertEnvContent = (existingContent: string, updates: EnvMap): string => {
-  const existingLines = existingContent.split(/\r?\n/)
+  const existingLines = existingContent === '' ? [] : existingContent.split(/\r?\n/)
   const pendingKeys = new Set(Object.keys(updates))
 
   const nextLines = existingLines.map((line) => {
@@ -109,6 +109,7 @@ export const writeEnvFile = async (filePath: string, updates: EnvMap): Promise<{
   const dir = path.dirname(filePath)
   const base = path.basename(filePath)
   const tempPath = path.join(dir, `.${base}.${process.pid}.tmp`)
+  await fs.mkdir(dir, { recursive: true })
   await fs.writeFile(tempPath, nextContent, 'utf8')
   await fs.rename(tempPath, filePath)
   return { content: nextContent, env: parseEnv(nextContent) }

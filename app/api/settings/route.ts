@@ -1,23 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import path from 'node:path'
-import { EnvMap, readEnvFile, writeEnvFile } from '@/lib/env-file'
-import { DEFAULT_POLISH_INSTRUCTIONS } from '@/lib/polish-config'
+import { readEnvFile, writeEnvFile } from '@/lib/env-file'
+import { settingsFromEnv, settingsToEnv, type Settings } from '@/lib/app-settings'
 
 export const runtime = 'nodejs'
-
-const DEFAULT_ASR_API_URL = 'https://api.siliconflow.cn/v1/audio/transcriptions'
-const DEFAULT_ASR_MODEL = 'TeleAI/TeleSpeechASR'
-const DEFAULT_LLM_API_URL = 'https://juya.owl.ci/v1'
-const DEFAULT_LLM_MODEL = 'DeepSeek-V3.1-Terminus'
-type Settings = {
-  apiKey: string
-  apiUrl: string
-  model: string
-  llmApiUrl: string
-  llmModel: string
-  llmApiKey: string
-  customInstructions: string
-}
 
 const getEnvFilePath = () => {
   // This route intentionally reads/writes a runtime-selected env file.
@@ -25,16 +11,6 @@ const getEnvFilePath = () => {
   const configuredEnvFile = /* turbopackIgnore: true */ process.env.APP_SETTINGS_ENV_FILE || '.env'
   return path.resolve(/* turbopackIgnore: true */ process.cwd(), configuredEnvFile)
 }
-
-const toSettings = (env: EnvMap): Settings => ({
-  apiKey: env.ASR_API_KEY ?? '',
-  apiUrl: env.ASR_API_URL ?? DEFAULT_ASR_API_URL,
-  model: env.ASR_MODEL ?? DEFAULT_ASR_MODEL,
-  llmApiUrl: env.LLM_API_URL ?? DEFAULT_LLM_API_URL,
-  llmModel: env.LLM_MODEL ?? DEFAULT_LLM_MODEL,
-  llmApiKey: env.LLM_API_KEY ?? '',
-  customInstructions: env.CUSTOM_INSTRUCTIONS ?? DEFAULT_POLISH_INSTRUCTIONS,
-})
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -81,7 +57,7 @@ export async function GET(): Promise<NextResponse> {
 
   return NextResponse.json({
     success: true,
-    settings: toSettings(fileEnv),
+    settings: settingsFromEnv(fileEnv),
     envFile: {
       path: envFilePath,
       exists,
@@ -96,15 +72,7 @@ export async function PUT(req: NextRequest): Promise<NextResponse> {
   }
 
   const envFilePath = getEnvFilePath()
-  const updates: EnvMap = {
-    ASR_API_KEY: nextSettings.apiKey.trim(),
-    ASR_API_URL: nextSettings.apiUrl.trim() || DEFAULT_ASR_API_URL,
-    ASR_MODEL: nextSettings.model.trim() || DEFAULT_ASR_MODEL,
-    LLM_API_KEY: nextSettings.llmApiKey.trim(),
-    LLM_API_URL: nextSettings.llmApiUrl.trim() || DEFAULT_LLM_API_URL,
-    LLM_MODEL: nextSettings.llmModel.trim() || DEFAULT_LLM_MODEL,
-    CUSTOM_INSTRUCTIONS: nextSettings.customInstructions.trim() || DEFAULT_POLISH_INSTRUCTIONS,
-  }
+  const updates = settingsToEnv(nextSettings)
 
   try {
     await writeEnvFile(envFilePath, updates)
@@ -117,7 +85,7 @@ export async function PUT(req: NextRequest): Promise<NextResponse> {
 
   return NextResponse.json({
     success: true,
-    settings: toSettings(updates),
+    settings: settingsFromEnv(updates),
     envFile: {
       path: envFilePath,
       exists: true,

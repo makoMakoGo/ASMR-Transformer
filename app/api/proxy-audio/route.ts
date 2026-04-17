@@ -1,35 +1,36 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { isAlistPageUrl, resolveAlistUrl } from '@/lib/alist-utils'
 import { getFetchAudioMaxBytes } from '@/lib/runtime-config'
-import { getAudioMimeType, validateAndParseAudioUrl } from '@/lib/url-utils'
+import {
+  buildRemoteAudioMetadata,
+  DEFAULT_REMOTE_AUDIO_USER_AGENT,
+  RemoteAudioError,
+  resolveRemoteAudioSource,
+  type RemoteAudioMetadata,
+  type ResolvedRemoteAudioSource,
+} from '@/lib/remote-audio'
 
 export const runtime = 'nodejs'
 
-const DEFAULT_USER_AGENT = 'Mozilla/5.0 (ASMR-Transformer/1.0)'
 const FETCH_TIMEOUT_MS = 120_000 // 2 minutes for initial connection
-const MAX_AUDIO_BYTES = getFetchAudioMaxBytes()
+
+const getMaxAudioSizeMessage = (maxAudioBytes: number): string => {
+  const maxMB = Math.round(maxAudioBytes / (1024 * 1024))
+  return `音频文件过大，超过 ${maxMB}MB 限制`
+}
 
 /**
  * POST /api/proxy-audio
  *
  * 流式代理音频文件，返回二进制流（源站提供时附带 Content-Length）
  * 前端可以显示下载进度
- *
- * Request body:
- * - url: 音频 URL（支持 AList 播放页面）
- *
- * Response:
- * - 成功：音频二进制流，带 Content-Type、X-File-Name 头；源站提供时包含 Content-Length
- * - 失败：JSON 错误信息
  */
 export async function POST(req: NextRequest): Promise<Response> {
-  // 创建超时 signal 并与客户端断开 signal 合并
-  // 客户端刷新/关闭页面时，req.signal 会 abort，同时中止所有外部请求
+  const maxAudioBytes = getFetchAudioMaxBytes()
   const timeoutController = new AbortController()
   const timeoutId = setTimeout(() => timeoutController.abort(), FETCH_TIMEOUT_MS)
   const combinedSignal = AbortSignal.any([req.signal, timeoutController.signal])
 
-  // 清理函数
+  // This timer outlives async branches unless every return path clears it.
   const cleanup = () => clearTimeout(timeoutId)
 
   let body: Record<string, unknown> | null = null
@@ -40,137 +41,60 @@ export async function POST(req: NextRequest): Promise<Response> {
     return NextResponse.json({ error: '请求体必须为 JSON' }, { status: 400 })
   }
 
-  let audioUrl = String(body?.url || '').trim()
-  if (!audioUrl) {
+  const requestedUrl = String(body?.url || '').trim()
+  if (!requestedUrl) {
     cleanup()
     return NextResponse.json({ error: '缺少音频 URL' }, { status: 400 })
   }
 
-  const isAlistPage = isAlistPageUrl(audioUrl)
-  const inputUrlResult = validateAndParseAudioUrl(audioUrl, {
-    requireAudioExtension: !isAlistPage,
-  })
-  if (!inputUrlResult.ok) {
-    cleanup()
-    return NextResponse.json(
-      {
-        error:
-          inputUrlResult.error === 'PRIVATE_HOST'
-            ? '不支持访问本机或内网地址'
-            : '音频 URL 无效或不受支持',
-      },
-      { status: 400 }
+  let source: ResolvedRemoteAudioSource
+  try {
+    source = await resolveRemoteAudioSource(
+      requestedUrl,
+      (fetchUrl, init) => fetch(fetchUrl, { ...init, signal: combinedSignal }),
+      DEFAULT_REMOTE_AUDIO_USER_AGENT
     )
-  }
-
-  let urlObj = inputUrlResult.url
-
-  // 如果是 AList 播放页面，先解析真实音频 URL
-  let fileName = ''
-  let resolvedFileSize: number | undefined
-
-  if (isAlistPage) {
-    try {
-      const result = await resolveAlistUrl(
-        audioUrl,
-        (fetchUrl, init) =>
-          fetch(fetchUrl, { ...init, signal: combinedSignal }),
-        DEFAULT_USER_AGENT
-      )
-      audioUrl = result.rawUrl
-      fileName = result.fileName
-      resolvedFileSize = result.fileSize
-    } catch (error) {
-      cleanup()
-      const errMsg = (error as Error).message
-      // 区分客户端断开和超时
-      if ((error as Error).name === 'AbortError') {
-        if (req.signal.aborted) {
-          return NextResponse.json({ error: '请求已取消' }, { status: 499 })
-        }
-        return NextResponse.json({ error: '解析播放页面超时' }, { status: 504 })
+  } catch (error) {
+    cleanup()
+    if (error instanceof Error && error.name === 'AbortError') {
+      if (req.signal.aborted) {
+        return NextResponse.json({ error: '请求已取消' }, { status: 499 })
       }
-      return NextResponse.json(
-        { error: `解析播放页面失败: ${errMsg}` },
-        { status: 400 }
-      )
+      return NextResponse.json({ error: '解析播放页面超时' }, { status: 504 })
     }
+    if (error instanceof RemoteAudioError) {
+      return NextResponse.json({ error: error.message }, { status: error.status })
+    }
+    const errorMsg = error instanceof Error ? error.message : String(error)
+    return NextResponse.json({ error: `解析播放页面失败: ${errorMsg}` }, { status: 400 })
   }
 
-  if (typeof resolvedFileSize === 'number' && resolvedFileSize > MAX_AUDIO_BYTES) {
+  if (typeof source.fileSizeHint === 'number' && source.fileSizeHint > maxAudioBytes) {
     cleanup()
-    const maxMB = Math.round(MAX_AUDIO_BYTES / (1024 * 1024))
-    return NextResponse.json(
-      { error: `音频文件过大，超过 ${maxMB}MB 限制` },
-      { status: 413 }
-    )
-  }
-
-  if (isAlistPage) {
-    const resolvedUrlResult = validateAndParseAudioUrl(audioUrl)
-    if (!resolvedUrlResult.ok) {
-      cleanup()
-      return NextResponse.json(
-        {
-          error:
-            resolvedUrlResult.error === 'PRIVATE_HOST'
-              ? '不支持访问本机或内网地址'
-              : '音频 URL 无效或不受支持',
-        },
-        { status: 400 }
-      )
-    }
-    urlObj = resolvedUrlResult.url
-  }
-
-  // 从 URL 提取文件名（如果还没有）
-  if (!fileName) {
-    try {
-      const pathParts = urlObj.pathname.split('/')
-      fileName = decodeURIComponent(pathParts[pathParts.length - 1] || 'audio')
-    } catch {
-      fileName = 'audio'
-    }
-  }
-
-  const fileExtension = (() => {
-    const normalized = fileName.trim().toLowerCase()
-    const dotIndex = normalized.lastIndexOf('.')
-    if (dotIndex === -1 || dotIndex === normalized.length - 1) return ''
-    return normalized.slice(dotIndex + 1)
-  })()
-  if (fileExtension === 'wma') {
-    cleanup()
-    return NextResponse.json(
-      { error: '不支持 WMA 格式，请转换为 mp3/wav/m4a/flac/ogg/webm/aac' },
-      { status: 400 }
-    )
+    return NextResponse.json({ error: getMaxAudioSizeMessage(maxAudioBytes) }, { status: 413 })
   }
 
   let audioResponse: Response
   try {
-    audioResponse = await fetch(audioUrl, {
+    audioResponse = await fetch(source.resolvedUrl, {
       method: 'GET',
       redirect: 'follow',
       signal: combinedSignal,
       headers: {
-        'User-Agent': DEFAULT_USER_AGENT,
-        Referer: urlObj.origin,
+        'User-Agent': DEFAULT_REMOTE_AUDIO_USER_AGENT,
+        Referer: source.resolvedUrlObject.origin,
       },
     })
   } catch (error) {
     cleanup()
-    if ((error as Error).name === 'AbortError') {
-      // 区分超时和客户端断开
+    if (error instanceof Error && error.name === 'AbortError') {
       if (req.signal.aborted) {
         return NextResponse.json({ error: '请求已取消' }, { status: 499 })
       }
       return NextResponse.json({ error: '连接超时，请稍后重试' }, { status: 504 })
     }
-    return NextResponse.json(
-      { error: `无法连接音频源: ${(error as Error).message}` },
-      { status: 502 }
-    )
+    const errorMsg = error instanceof Error ? error.message : String(error)
+    return NextResponse.json({ error: `无法连接音频源: ${errorMsg}` }, { status: 502 })
   }
 
   cleanup()
@@ -182,74 +106,51 @@ export async function POST(req: NextRequest): Promise<Response> {
     )
   }
 
-  // 验证 Content-Type
-  const contentTypeHeader = (audioResponse.headers.get('content-type') || '').split(';')[0].trim()
-  const normalizedContentTypeHeader = contentTypeHeader.toLowerCase()
-  if (
-    normalizedContentTypeHeader === 'audio/x-ms-wma' ||
-    normalizedContentTypeHeader === 'audio/wma'
-  ) {
-    return NextResponse.json(
-      { error: '不支持 WMA 格式，请转换为 mp3/wav/m4a/flac/ogg/webm/aac' },
-      { status: 400 }
-    )
-  }
-  const mimeFromUrl = getAudioMimeType(audioUrl)
-  const isAudio =
-    (contentTypeHeader && contentTypeHeader.startsWith('audio/')) ||
-    contentTypeHeader.includes('octet-stream') ||
-    (!!mimeFromUrl && mimeFromUrl.startsWith('audio/'))
-
-  if (!isAudio) {
-    return NextResponse.json(
-      { error: '该链接返回的内容不是音频格式' },
-      { status: 400 }
-    )
+  let metadata: RemoteAudioMetadata
+  try {
+    metadata = buildRemoteAudioMetadata({
+      source,
+      contentType: audioResponse.headers.get('content-type'),
+      contentDisposition: audioResponse.headers.get('content-disposition'),
+      contentLength: audioResponse.headers.get('content-length'),
+      fallbackName: 'audio',
+    })
+  } catch (error) {
+    if (error instanceof RemoteAudioError) {
+      return NextResponse.json({ error: error.message }, { status: error.status })
+    }
+    const errorMsg = error instanceof Error ? error.message : String(error)
+    return NextResponse.json({ error: `校验音频失败: ${errorMsg}` }, { status: 500 })
   }
 
-  // 检查文件大小
-  const contentLength = audioResponse.headers.get('content-length')
-  if (contentLength && Number(contentLength) > MAX_AUDIO_BYTES) {
-    const maxMB = Math.round(MAX_AUDIO_BYTES / (1024 * 1024))
-    return NextResponse.json(
-      { error: `音频文件过大，超过 ${maxMB}MB 限制` },
-      { status: 413 }
-    )
+  if (metadata.fileSize > maxAudioBytes) {
+    return NextResponse.json({ error: getMaxAudioSizeMessage(maxAudioBytes) }, { status: 413 })
   }
 
   if (!audioResponse.body) {
     return NextResponse.json({ error: '无法读取音频数据流' }, { status: 500 })
   }
 
-  // 确定 Content-Type
-  const finalContentType =
-    (contentTypeHeader && contentTypeHeader.startsWith('audio/') && contentTypeHeader) ||
-    mimeFromUrl ||
-    'application/octet-stream'
-
-  // 构建响应头
   const headers = new Headers({
-    'Content-Type': finalContentType,
-    'X-File-Name': encodeURIComponent(fileName),
+    'Content-Type': metadata.contentType,
+    'X-File-Name': encodeURIComponent(metadata.fileName),
     'Cache-Control': 'no-cache',
   })
 
-  if (contentLength) {
-    headers.set('Content-Length', contentLength)
+  if (metadata.contentLength) {
+    headers.set('Content-Length', metadata.contentLength)
   }
 
-  // 监听客户端断开，中止流传输
   let bytesRead = 0
   const limitedStream = audioResponse.body.pipeThrough(
     new TransformStream<Uint8Array, Uint8Array>({
       transform(chunk, controller) {
-        // 检查客户端是否已断开
         if (req.signal.aborted) {
           controller.error(new Error('CLIENT_DISCONNECTED'))
           return
         }
         bytesRead += chunk.byteLength
-        if (bytesRead > MAX_AUDIO_BYTES) {
+        if (bytesRead > maxAudioBytes) {
           controller.error(new Error('MAX_AUDIO_BYTES_EXCEEDED'))
           return
         }

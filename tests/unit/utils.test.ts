@@ -1,65 +1,92 @@
-import { describe, it, expect } from 'vitest'
+import { describe, expect, it } from 'vitest'
+import {
+  applySettingsDefaults,
+  DEFAULT_ASR_MODEL,
+  DEFAULT_LLM_MODEL,
+  DEFAULT_SETTINGS,
+  normalizeSettingsForStorage,
+} from '@/lib/app-settings'
+import { formatFileSize } from '@/lib/file-size'
+import {
+  canPolishTranscription,
+  PROCESSING_STATUS_CONFIG,
+} from '@/lib/transcription-state'
 
-// 单元测试 - 工具函数
-
-describe('文件大小格式化', () => {
-  // 从 page.tsx 提取的逻辑
-  const formatFileSize = (bytes: number): string => {
-    if (bytes < 1024) return bytes + ' B'
-    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(2) + ' KB'
-    return (bytes / (1024 * 1024)).toFixed(2) + ' MB'
-  }
-
-  it('格式化字节', () => {
-    expect(formatFileSize(500)).toBe('500 B')
+describe('formatFileSize', () => {
+  it('formats bytes, KB, and MB from the real shared helper', () => {
     expect(formatFileSize(0)).toBe('0 B')
-  })
-
-  it('格式化 KB', () => {
+    expect(formatFileSize(500)).toBe('500 B')
     expect(formatFileSize(1024)).toBe('1.00 KB')
-    expect(formatFileSize(2048)).toBe('2.00 KB')
     expect(formatFileSize(1536)).toBe('1.50 KB')
-  })
-
-  it('格式化 MB', () => {
-    expect(formatFileSize(1024 * 1024)).toBe('1.00 MB')
     expect(formatFileSize(1024 * 1024 * 2.5)).toBe('2.50 MB')
   })
 })
 
-describe('状态配置', () => {
-  const statusConfig = {
-    idle: { text: '准备就绪', color: 'bg-[#8E8E93]' },
-    uploading: { text: '上传中', color: 'bg-[#007AFF]' },
-    uploaded: { text: '已上传', color: 'bg-[#34C759]' },
-    transcribing: { text: '识别中', color: 'bg-[#FF9500]' },
-    done: { text: '已完成', color: 'bg-[#34C759]' },
-    error: { text: '出错了', color: 'bg-[#FF3B30]' },
-  }
+describe('PROCESSING_STATUS_CONFIG', () => {
+  it('exposes the exact workflow states used by the page', () => {
+    expect(Object.keys(PROCESSING_STATUS_CONFIG)).toEqual([
+      'idle',
+      'processing',
+      'transcribing',
+      'done',
+      'error',
+    ])
+    expect(PROCESSING_STATUS_CONFIG.processing.text).toBe('处理中')
+    expect(PROCESSING_STATUS_CONFIG.transcribing.text).toBe('识别中')
+  })
+})
 
-  it('所有状态都有配置', () => {
-    const statuses = ['idle', 'uploading', 'uploaded', 'transcribing', 'done', 'error'] as const
-    statuses.forEach((status) => {
-      expect(statusConfig[status]).toBeDefined()
-      expect(statusConfig[status].text).toBeDefined()
-      expect(statusConfig[status].color).toBeDefined()
+describe('app-settings', () => {
+  it('exports a single source of truth for defaults', () => {
+    expect(DEFAULT_SETTINGS.apiUrl).toContain('siliconflow')
+    expect(DEFAULT_SETTINGS.model).toBe(DEFAULT_ASR_MODEL)
+    expect(DEFAULT_SETTINGS.llmModel).toBe(DEFAULT_LLM_MODEL)
+    expect(DEFAULT_SETTINGS.customInstructions.length).toBeGreaterThan(0)
+  })
+
+  it('applies defaults only to configurable blanks', () => {
+    expect(
+      applySettingsDefaults({
+        apiKey: '  raw-key  ',
+        apiUrl: ' ',
+        model: '',
+        llmApiUrl: ' ',
+        llmModel: '',
+        customInstructions: '   ',
+      })
+    ).toEqual({
+      ...DEFAULT_SETTINGS,
+      apiKey: '  raw-key  ',
+      llmApiKey: '',
+    })
+  })
+
+  it('normalizes persisted settings without losing explicit secrets', () => {
+    expect(
+      normalizeSettingsForStorage({
+        ...DEFAULT_SETTINGS,
+        apiKey: '  secret  ',
+        apiUrl: ' ',
+        model: ' ',
+        llmApiUrl: ' ',
+        llmModel: ' ',
+        llmApiKey: '  llm-secret  ',
+        customInstructions: ' ',
+      })
+    ).toEqual({
+      ...DEFAULT_SETTINGS,
+      apiKey: 'secret',
+      llmApiKey: 'llm-secret',
     })
   })
 })
 
-describe('默认配置常量', () => {
-  const DEFAULT_ASR_API_URL = 'https://api.siliconflow.cn/v1/audio/transcriptions'
-  const DEFAULT_ASR_MODEL = 'TeleAI/TeleSpeechASR'
-  const DEFAULT_LLM_API_URL = 'https://juya.owl.ci/v1'
-  const DEFAULT_LLM_MODEL = 'DeepSeek-V3.1-Terminus'
-
-  it('ASR 默认配置正确', () => {
-    expect(DEFAULT_ASR_API_URL).toContain('siliconflow')
-    expect(DEFAULT_ASR_MODEL).toBe('TeleAI/TeleSpeechASR')
-  })
-
-  it('LLM 默认配置正确', () => {
-    expect(DEFAULT_LLM_API_URL).toContain('juya.owl.ci')
-    expect(DEFAULT_LLM_MODEL).toContain('DeepSeek')
+describe('canPolishTranscription', () => {
+  it('allows polish only for successful non-empty transcriptions', () => {
+    expect(canPolishTranscription({ kind: 'idle' })).toBe(false)
+    expect(canPolishTranscription({ kind: 'empty' })).toBe(false)
+    expect(canPolishTranscription({ kind: 'error', message: 'bad' })).toBe(false)
+    expect(canPolishTranscription({ kind: 'success', text: '  ' })).toBe(false)
+    expect(canPolishTranscription({ kind: 'success', text: 'hello' })).toBe(true)
   })
 })

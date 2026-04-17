@@ -12,15 +12,15 @@ describe('polish-config', () => {
     expect(FIXED_SYSTEM_PROMPT).toContain('专业的文字编辑助手')
   })
 
-  it('拼接 chat completions 地址时会去掉多余尾斜杠', () => {
+  it('拼接 chat completions 地址时保留调用方提供的基础路径', () => {
     expect(buildChatCompletionsUrl('https://api.example.com/v1')).toBe(
       'https://api.example.com/v1/chat/completions'
     )
-    expect(buildChatCompletionsUrl('https://api.example.com/v1/')).toBe(
-      'https://api.example.com/v1/chat/completions'
+    expect(buildChatCompletionsUrl(' https://openrouter.ai/api/v1/// ')).toBe(
+      'https://openrouter.ai/api/v1/chat/completions'
     )
-    expect(buildChatCompletionsUrl(' https://api.example.com/v1/// ')).toBe(
-      'https://api.example.com/v1/chat/completions'
+    expect(buildChatCompletionsUrl('https://localhost:3000/custom')).toBe(
+      'https://localhost:3000/custom/chat/completions'
     )
   })
 })
