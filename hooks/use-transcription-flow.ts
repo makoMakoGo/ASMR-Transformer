@@ -143,6 +143,14 @@ export const useTranscriptionFlow = ({
 
       const xhr = new XMLHttpRequest()
       const response = await new Promise<{ ok: boolean; status: number; data: Record<string, unknown> }>((resolve, reject) => {
+        let waitTimer: ReturnType<typeof setInterval> | null = null
+        const stopWaitTimer = () => {
+          if (waitTimer !== null) {
+            clearInterval(waitTimer)
+            waitTimer = null
+          }
+        }
+
         xhr.upload.onprogress = (event) => {
           if (!event.lengthComputable) return
 
@@ -156,11 +164,22 @@ export const useTranscriptionFlow = ({
 
         xhr.upload.onload = () => {
           setStatus('transcribing')
-          setStatusMessage('正在识别语音...')
+          setStatusMessage('正在识别语音... 已等待 0s')
           addLog('上传完成，正在识别语音...', 'success')
+          const startedAt = Date.now()
+          let lastHeartbeat = 0
+          waitTimer = setInterval(() => {
+            const elapsed = Math.floor((Date.now() - startedAt) / 1000)
+            setStatusMessage(`正在识别语音... 已等待 ${elapsed}s`)
+            if (elapsed > 0 && elapsed % 10 === 0 && elapsed !== lastHeartbeat) {
+              lastHeartbeat = elapsed
+              addLog(`仍在识别中... 已等待 ${elapsed}s`, 'info')
+            }
+          }, 1000)
         }
 
         xhr.onload = () => {
+          stopWaitTimer()
           try {
             const data = JSON.parse(xhr.responseText) as Record<string, unknown>
             resolve({ ok: xhr.status >= 200 && xhr.status < 300, status: xhr.status, data })
@@ -169,8 +188,14 @@ export const useTranscriptionFlow = ({
           }
         }
 
-        xhr.onerror = () => reject(new Error('网络错误'))
-        xhr.ontimeout = () => reject(new Error('请求超时'))
+        xhr.onerror = () => {
+          stopWaitTimer()
+          reject(new Error('网络错误'))
+        }
+        xhr.ontimeout = () => {
+          stopWaitTimer()
+          reject(new Error('请求超时'))
+        }
 
         xhr.open('POST', effectiveSettings.apiUrl)
         xhr.setRequestHeader('Authorization', `Bearer ${effectiveSettings.apiKey}`)
