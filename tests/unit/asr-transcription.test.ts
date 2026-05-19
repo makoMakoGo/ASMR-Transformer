@@ -20,6 +20,7 @@ class FakeXMLHttpRequest {
   onload: (() => void) | null = null
   onerror: (() => void) | null = null
   ontimeout: (() => void) | null = null
+  abortCount = 0
 
   open(method: string, url: string) {
     this.method = method
@@ -32,6 +33,10 @@ class FakeXMLHttpRequest {
 
   send(body: BodyInit | null) {
     this.body = body
+  }
+
+  abort() {
+    this.abortCount += 1
   }
 }
 
@@ -194,5 +199,79 @@ describe('runAsrTranscription', () => {
     xhr.onload?.()
 
     await expect(pending).rejects.toThrow('响应解析失败')
+  })
+
+  it('rejects with AbortError when the signal is already aborted before send', async () => {
+    const xhr = new FakeXMLHttpRequest()
+    const controller = new AbortController()
+    controller.abort()
+
+    const pending = runAsrTranscription(
+      new File(['audio'], 'test.mp3'),
+      normalizeAsrRunSettings(buildSettings()),
+      {},
+      {
+        requestFactory: () => xhr as unknown as XMLHttpRequest,
+        signal: controller.signal,
+      }
+    )
+
+    await expect(pending).rejects.toMatchObject({ name: 'AbortError' })
+    expect(xhr.abortCount).toBe(1)
+  })
+
+  it('rejects with AbortError, calls xhr.abort, and stops the heartbeat when signal aborts mid-flight', async () => {
+    const xhr = new FakeXMLHttpRequest()
+    const controller = new AbortController()
+    let clearedTimers = 0
+    let intervalHandler: (() => void) | null = null
+
+    const pending = runAsrTranscription(
+      new File(['audio'], 'test.mp3'),
+      normalizeAsrRunSettings(buildSettings()),
+      {},
+      {
+        requestFactory: () => xhr as unknown as XMLHttpRequest,
+        signal: controller.signal,
+        setIntervalFn: (handler) => {
+          intervalHandler = handler
+          return 1 as unknown as ReturnType<typeof setInterval>
+        },
+        clearIntervalFn: () => {
+          clearedTimers += 1
+        },
+      }
+    )
+
+    // simulate upload completion → heartbeat timer started
+    xhr.upload.onload?.({} as ProgressEvent)
+    expect(intervalHandler).not.toBeNull()
+
+    controller.abort()
+
+    await expect(pending).rejects.toMatchObject({ name: 'AbortError' })
+    expect(xhr.abortCount).toBe(1)
+    expect(clearedTimers).toBe(1)
+  })
+
+  it('detaches the abort listener on successful response so later aborts are no-ops', async () => {
+    const xhr = new FakeXMLHttpRequest()
+    const controller = new AbortController()
+
+    const pending = runAsrTranscription(
+      new File(['audio'], 'test.mp3'),
+      normalizeAsrRunSettings(buildSettings()),
+      {},
+      {
+        requestFactory: () => xhr as unknown as XMLHttpRequest,
+        signal: controller.signal,
+      }
+    )
+
+    xhr.onload?.()
+    await expect(pending).resolves.toMatchObject({ ok: true })
+
+    controller.abort()
+    expect(xhr.abortCount).toBe(0)
   })
 })
