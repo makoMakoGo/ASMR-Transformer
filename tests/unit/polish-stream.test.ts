@@ -3,11 +3,12 @@ import {
   consumePolishStream,
   getPolishCompletionLog,
   parsePolishStreamLine,
+  type PolishStreamParseWarning,
   type PolishStreamState,
 } from '@/lib/polish-stream'
 
-const encodeStream = (chunks: string[]): ReadableStream<Uint8Array> => new ReadableStream({
-  start(controller) {
+const encodeStream = (chunks: string[]): ReadableStream<Uint8Array> => new ReadableStream<Uint8Array>({
+  start(controller: ReadableStreamDefaultController<Uint8Array>): void {
     const encoder = new TextEncoder()
     for (const chunk of chunks) controller.enqueue(encoder.encode(chunk))
     controller.close()
@@ -76,7 +77,9 @@ describe('consumePolishStream', () => {
         'data: [DONE]\n',
       ]),
       {
-        onContent: ({ text }) => updates.push(text),
+        onContent: ({ text }: PolishStreamState): void => {
+          updates.push(text)
+        },
       }
     )
 
@@ -94,7 +97,9 @@ describe('consumePolishStream', () => {
         'data: {"choices":[{"delta":{"content":"ok"},"finish_reason":"length"}]}\n',
       ]),
       {
-        onWarning: ({ chunk }) => warnings.push(chunk),
+        onWarning: ({ chunk }: PolishStreamParseWarning): void => {
+          warnings.push(chunk)
+        },
       }
     )
 
@@ -110,7 +115,9 @@ describe('consumePolishStream', () => {
         'data: {"choices":[{"delta":{"content":"尾段"},"finish_reason":"stop"}]}',
       ]),
       {
-        onContent: ({ text }) => updates.push(text),
+        onContent: ({ text }: PolishStreamState): void => {
+          updates.push(text)
+        },
       }
     )
 
@@ -123,11 +130,14 @@ describe('consumePolishStream', () => {
   it('propagates read errors and still releases the reader lock', async () => {
     let released = false
     const stream = {
-      getReader: () => ({
-        read: async () => {
+      getReader: (): {
+        read: () => Promise<ReadableStreamReadResult<Uint8Array>>
+        releaseLock: () => void
+      } => ({
+        read: async (): Promise<ReadableStreamReadResult<Uint8Array>> => {
           throw new Error('stream aborted')
         },
-        releaseLock: () => {
+        releaseLock: (): void => {
           released = true
         },
       }),
@@ -140,11 +150,11 @@ describe('consumePolishStream', () => {
   it('cancels the reader after a DONE event', async () => {
     let canceled = false
     const stream = new ReadableStream<Uint8Array>({
-      start(controller) {
+      start(controller: ReadableStreamDefaultController<Uint8Array>): void {
         const encoder = new TextEncoder()
         controller.enqueue(encoder.encode('data: [DONE]\n'))
       },
-      cancel() {
+      cancel(): void {
         canceled = true
       },
     })
