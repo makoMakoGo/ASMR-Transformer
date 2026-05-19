@@ -4,6 +4,7 @@ import {
   DEFAULT_REMOTE_AUDIO_USER_AGENT,
   RemoteAudioError,
   proxyRemoteAudio,
+  type RemoteAudioProxyResult,
 } from '@/lib/remote-audio'
 
 export const runtime = 'nodejs'
@@ -29,7 +30,7 @@ export async function POST(req: NextRequest): Promise<Response> {
     return NextResponse.json({ error: '缺少音频 URL' }, { status: 400 })
   }
 
-  let result: Awaited<ReturnType<typeof proxyRemoteAudio>>
+  let result: RemoteAudioProxyResult
   try {
     result = await proxyRemoteAudio(
       requestedUrl,

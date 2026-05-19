@@ -7,7 +7,15 @@ import {
 } from '@/lib/url-utils'
 
 export const DEFAULT_REMOTE_AUDIO_USER_AGENT = 'Mozilla/5.0 (ASMR-Transformer/1.0)'
+/** 仅覆盖解析 + 响应头到达阶段；body 流的下载靠调用方传入的 signal 控制。 */
 export const DEFAULT_REMOTE_AUDIO_FETCH_TIMEOUT_MS = 120_000
+
+const TIMEOUT_MESSAGES = {
+  CHECK_RESOLVE: '检查超时（解析阶段）',
+  CHECK_HEAD: '检查超时（HEAD 阶段）',
+  PROXY_RESOLVE: '解析播放页面超时',
+  PROXY_CONNECT: '连接超时，请稍后重试',
+} as const
 
 export type RemoteAudioErrorCode =
   | AudioUrlValidationError
@@ -141,8 +149,11 @@ export const resolveRemoteAudioSource = async (
 }
 
 export const getMaxRemoteAudioSizeMessage = (maxAudioBytes: number): string => {
-  const maxMB = Math.round(maxAudioBytes / (1024 * 1024))
-  return `音频文件过大，超过 ${maxMB}MB 限制`
+  const maxMB = maxAudioBytes / (1024 * 1024)
+  const display = maxMB >= 1
+    ? `${Math.round(maxMB)}MB`
+    : `${Math.max(1, Math.round(maxAudioBytes / 1024))}KB`
+  return `音频文件过大，超过 ${display} 限制`
 }
 
 const getErrorMessage = (error: unknown): string => error instanceof Error ? error.message : String(error)
@@ -190,7 +201,7 @@ export const checkRemoteAudio = async (
       )
     } catch (error) {
       if (isAbortError(error)) {
-        throw buildAbortError(signal, '检查超时')
+        throw buildAbortError(signal, TIMEOUT_MESSAGES.CHECK_RESOLVE)
       }
       throw error
     }
@@ -204,7 +215,7 @@ export const checkRemoteAudio = async (
       })
     } catch (error) {
       if (isAbortError(error)) {
-        throw buildAbortError(signal, '检查超时')
+        throw buildAbortError(signal, TIMEOUT_MESSAGES.CHECK_HEAD)
       }
       throw new RemoteAudioError('SOURCE_HEAD_FAILED', `检查失败: ${getErrorMessage(error)}`, 500)
     }
@@ -255,6 +266,7 @@ const limitRemoteAudioStream = (
   return body.pipeThrough(
     new TransformStream<Uint8Array, Uint8Array>({
       transform(chunk, controller) {
+        // 进入流读取阶段后 timeout timer 已 clear，仅依赖客户端 signal 检测断连。
         if (signal?.aborted) {
           controller.error(new Error('CLIENT_DISCONNECTED'))
           return
@@ -297,7 +309,7 @@ export const proxyRemoteAudio = async (
       )
     } catch (error) {
       if (isAbortError(error)) {
-        throw buildAbortError(signal, '解析播放页面超时')
+        throw buildAbortError(signal, TIMEOUT_MESSAGES.PROXY_RESOLVE)
       }
       throw error
     }
@@ -319,7 +331,7 @@ export const proxyRemoteAudio = async (
       })
     } catch (error) {
       if (isAbortError(error)) {
-        throw buildAbortError(signal, '连接超时，请稍后重试')
+        throw buildAbortError(signal, TIMEOUT_MESSAGES.PROXY_CONNECT)
       }
       throw new RemoteAudioError('SOURCE_CONNECT_FAILED', `无法连接音频源: ${getErrorMessage(error)}`, 502)
     }
