@@ -39,7 +39,10 @@ export type AsrTranscriptionOptions = {
   clearIntervalFn?: ClearIntervalFn
   now?: () => number
   timeoutMs?: number
+  signal?: AbortSignal
 }
+
+const buildAbortError = (): DOMException => new DOMException('Aborted', 'AbortError')
 
 export const normalizeAsrRunSettings = (settings: Settings): AsrRunSettings => {
   const normalized = normalizeSettingsForStorage(settings)
@@ -68,6 +71,7 @@ export const runAsrTranscription = async (
     clearIntervalFn = clearInterval,
     now = Date.now,
     timeoutMs = 300000,
+    signal,
   } = options
   const formData = new FormData()
   formData.append('file', file)
@@ -82,6 +86,26 @@ export const runAsrTranscription = async (
         waitTimer = null
       }
     }
+
+    const onAbort = () => {
+      stopWaitTimer()
+      try {
+        xhr.abort()
+      } catch {
+        // xhr.abort() should never throw, but XHR mocks may; swallow to ensure rejection still fires
+      }
+      reject(buildAbortError())
+    }
+
+    if (signal) {
+      if (signal.aborted) {
+        onAbort()
+        return
+      }
+      signal.addEventListener('abort', onAbort, { once: true })
+    }
+
+    const detachAbortListener = () => signal?.removeEventListener('abort', onAbort)
 
     xhr.upload.onprogress = (event) => {
       if (!event.lengthComputable) return
@@ -109,6 +133,7 @@ export const runAsrTranscription = async (
 
     xhr.onload = () => {
       stopWaitTimer()
+      detachAbortListener()
       try {
         const parsed = JSON.parse(xhr.responseText)
         const data = parsed && typeof parsed === 'object' && !Array.isArray(parsed)
@@ -127,10 +152,12 @@ export const runAsrTranscription = async (
 
     xhr.onerror = () => {
       stopWaitTimer()
+      detachAbortListener()
       reject(new Error('网络错误'))
     }
     xhr.ontimeout = () => {
       stopWaitTimer()
+      detachAbortListener()
       reject(new Error('请求超时'))
     }
 

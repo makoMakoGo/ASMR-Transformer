@@ -67,6 +67,9 @@ export const useTranscriptionFlow = ({
   const [fetchAudioMaxBytes, setFetchAudioMaxBytes] = useState(DEFAULT_FETCH_AUDIO_MAX_BYTES)
   const [copied, setCopied] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const transcribeAbortRef = useRef<AbortController | null>(null)
+
+  useEffect(() => () => transcribeAbortRef.current?.abort(), [])
 
   useEffect(() => {
     void (async () => {
@@ -139,6 +142,10 @@ export const useTranscriptionFlow = ({
     addLog(`目标 API: ${effectiveSettings.apiUrl}`, 'info')
     addLog(`使用模型: ${effectiveSettings.model}`, 'info')
 
+    transcribeAbortRef.current?.abort()
+    const controller = new AbortController()
+    transcribeAbortRef.current = controller
+
     try {
       addLog('正在上传文件...', 'info')
       setStatusMessage('正在上传文件...')
@@ -160,7 +167,7 @@ export const useTranscriptionFlow = ({
             addLog(`仍在识别中... 已等待 ${heartbeat.elapsedSeconds}s`, 'info')
           }
         },
-      })
+      }, { signal: controller.signal })
 
       if (!response.ok) {
         const errorMessage = formatAsrApiErrorMessage(response)
@@ -171,10 +178,19 @@ export const useTranscriptionFlow = ({
 
       finishTranscription(response.text)
     } catch (e) {
+      if (e instanceof DOMException && e.name === 'AbortError') {
+        addLog('转录已取消', 'info')
+        setStatus('idle')
+        setStatusMessage('')
+        return
+      }
       const errorMsg = e instanceof Error ? e.message : String(e)
       setFlowError(`请求失败: ${errorMsg}`, '请求失败')
       addLog(`请求失败: ${errorMsg}`, 'error')
     } finally {
+      if (transcribeAbortRef.current === controller) {
+        transcribeAbortRef.current = null
+      }
       setLoading(false)
     }
   }
@@ -378,6 +394,10 @@ export const useTranscriptionFlow = ({
     }
   }
 
+  const cancelTranscription = () => {
+    transcribeAbortRef.current?.abort()
+  }
+
   const copyTranscription = async () => {
     const text = getTranscriptionDisplayText(transcriptionResult)
     if (!text) return
@@ -411,6 +431,7 @@ export const useTranscriptionFlow = ({
     clearAudio,
     startTranscribe,
     importFromUrl,
+    cancelTranscription,
     copyTranscription,
   }
 }
