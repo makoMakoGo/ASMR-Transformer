@@ -39,7 +39,7 @@ const mainTabs = [
   { id: 'logs' as const, label: '日志' },
 ]
 
-type MainTabId = (typeof mainTabs)[number]['id']
+export type MainTabId = (typeof mainTabs)[number]['id']
 
 export default function Home() {
   const { theme, toggleTheme } = useThemePreference()
@@ -54,8 +54,8 @@ export default function Home() {
     onRunStarted: polishFlow.resetPolish,
   })
 
-  const transcriptionText = getTranscriptionDisplayText(transcriptionFlow.transcriptionResult)
-  const transcribedText = getTranscriptionText(transcriptionFlow.transcriptionResult)
+  const transcriptionDisplayText = getTranscriptionDisplayText(transcriptionFlow.transcriptionResult)
+  const transcriptionRawText = getTranscriptionText(transcriptionFlow.transcriptionResult)
   const polishedText = getPolishText(polishFlow.result)
   const polishedDisplayText = polishFlow.result.kind === 'error' ? polishFlow.result.message : polishedText
   const hasApiKey = settingsState.settings.apiKey.trim().length > 0
@@ -140,8 +140,8 @@ export default function Home() {
               <TranscriptionTab
                 polishFlow={polishFlow}
                 transcriptionFlow={transcriptionFlow}
-                transcriptionText={transcriptionText}
-                transcribedText={transcribedText}
+                transcriptionDisplayText={transcriptionDisplayText}
+                transcriptionRawText={transcriptionRawText}
                 canPolish={canPolish}
               />
             )}
@@ -149,7 +149,7 @@ export default function Home() {
             {currentTab === 'polish' && (
               <PolishTab
                 polishFlow={polishFlow}
-                transcribedText={transcribedText}
+                transcribedText={transcriptionRawText}
                 polishedText={polishedText}
                 polishedDisplayText={polishedDisplayText}
                 canPolish={canPolish}
@@ -157,7 +157,20 @@ export default function Home() {
             )}
 
             {currentTab === 'settings' && (
-              <SettingsTab {...settingsState} />
+              <SettingsTab
+                settings={settingsState.settings}
+                settingsLoaded={settingsState.settingsLoaded}
+                envFilePath={settingsState.envFilePath}
+                envFileExists={settingsState.envFileExists}
+                savingSettings={settingsState.savingSettings}
+                envSaveError={settingsState.envSaveError}
+                settingsLoadError={settingsState.settingsLoadError}
+                isDirty={settingsState.isDirty}
+                updateSetting={settingsState.updateSetting}
+                reloadSettingsFromEnv={settingsState.reloadSettingsFromEnv}
+                saveSettingsToEnv={settingsState.saveSettingsToEnv}
+                discardLocalChanges={settingsState.discardLocalChanges}
+              />
             )}
 
             {currentTab === 'logs' && (

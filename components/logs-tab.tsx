@@ -1,5 +1,3 @@
-'use client'
-
 import type { useActivityLog } from '@/hooks/use-activity-log'
 
 type ActivityLog = ReturnType<typeof useActivityLog>
@@ -52,8 +50,8 @@ export function LogsTab({
         {filteredLogs.length === 0 ? (
           <span className="text-muted-foreground">暂无日志...</span>
         ) : (
-          filteredLogs.map((log, index) => (
-            <div key={index} className={`${logColors[log.type]} animate-slide-in break-all`}>
+          filteredLogs.map((log) => (
+            <div key={log.id} className={`${logColors[log.type]} animate-slide-in break-all`}>
               <span className="text-muted-foreground/60">[{log.time}]</span> {log.message}
             </div>
           ))

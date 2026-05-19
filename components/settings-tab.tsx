@@ -1,9 +1,21 @@
-'use client'
-
 import { DEFAULT_SETTINGS, type Settings } from '@/lib/app-settings'
 import type { useSettingsState } from '@/hooks/use-settings-state'
 
-type SettingsState = ReturnType<typeof useSettingsState>
+type SettingsTabState = Pick<
+  ReturnType<typeof useSettingsState>,
+  | 'settings'
+  | 'settingsLoaded'
+  | 'envFilePath'
+  | 'envFileExists'
+  | 'savingSettings'
+  | 'envSaveError'
+  | 'settingsLoadError'
+  | 'isDirty'
+  | 'updateSetting'
+  | 'reloadSettingsFromEnv'
+  | 'saveSettingsToEnv'
+  | 'discardLocalChanges'
+>
 
 export function SettingsTab({
   settings,
@@ -18,7 +30,7 @@ export function SettingsTab({
   reloadSettingsFromEnv,
   saveSettingsToEnv,
   discardLocalChanges,
-}: SettingsState) {
+}: SettingsTabState) {
   return (
     <div role="tabpanel" id="tabpanel-settings" aria-labelledby="tab-settings" className="space-y-5 animate-fade-in">
       <div className="space-y-2">

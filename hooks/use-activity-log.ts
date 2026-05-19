@@ -3,6 +3,7 @@
 import { useCallback, useMemo, useRef, useState } from 'react'
 
 export type LogEntry = {
+  id: number
   time: string
   message: string
   type: 'info' | 'success' | 'error' | 'warning'
@@ -14,10 +15,13 @@ export const useActivityLog = () => {
   const [logs, setLogs] = useState<LogEntry[]>([])
   const [logFilter, setLogFilter] = useState<'all' | 'error' | 'success' | 'info'>('all')
   const logsContainerRef = useRef<HTMLDivElement>(null)
+  const nextLogId = useRef(0)
 
   const addLog = useCallback<AddLog>((message, type = 'info') => {
     const time = new Date().toLocaleTimeString('zh-CN', { hour12: false })
-    setLogs((prev) => [...prev, { time, message, type }])
+    const id = nextLogId.current
+    nextLogId.current += 1
+    setLogs((prev) => [...prev, { id, time, message, type }])
 
     // The delayed scroll keeps the log view aligned with React's async paint.
     setTimeout(() => {
