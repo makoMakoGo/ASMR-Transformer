@@ -6,12 +6,10 @@ export type AsrUploadProgress = {
   loaded: number
   total: number
   percent: number
-  shouldLog: boolean
 }
 
 export type AsrWaitHeartbeat = {
   elapsedSeconds: number
-  shouldLog: boolean
 }
 
 export type AsrTranscriptionResponse = {
@@ -115,19 +113,15 @@ export const runAsrTranscription = async (
         loaded: event.loaded,
         total: event.total,
         percent,
-        shouldLog: percent % 25 === 0 || percent === 100,
       })
     }
 
     xhr.upload.onload = () => {
       callbacks.onUploadComplete?.()
       const startedAt = now()
-      let lastHeartbeat = 0
       waitTimer = setIntervalFn(() => {
         const elapsedSeconds = Math.max(0, Math.floor((now() - startedAt) / 1000))
-        const shouldLog = elapsedSeconds > 0 && elapsedSeconds % 10 === 0 && elapsedSeconds !== lastHeartbeat
-        if (shouldLog) lastHeartbeat = elapsedSeconds
-        callbacks.onWaitHeartbeat?.({ elapsedSeconds, shouldLog })
+        callbacks.onWaitHeartbeat?.({ elapsedSeconds })
       }, 1000)
     }
 
@@ -146,7 +140,7 @@ export const runAsrTranscription = async (
           text: typeof data.text === 'string' ? data.text : '',
         })
       } catch {
-        reject(new Error('响应解析失败'))
+        reject(new Error(`响应解析失败 (HTTP ${xhr.status})`))
       }
     }
 

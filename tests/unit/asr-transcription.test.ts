@@ -104,11 +104,11 @@ describe('runAsrTranscription', () => {
     const events: Array<string> = []
     const callbacks: AsrTranscriptionCallbacks = {
       onUploadProgress: (progress) => {
-        events.push(`upload:${progress.loaded}/${progress.total}:${progress.percent}:${progress.shouldLog}`)
+        events.push(`upload:${progress.loaded}/${progress.total}:${progress.percent}`)
       },
       onUploadComplete: () => events.push('upload-complete'),
       onWaitHeartbeat: (heartbeat) => {
-        events.push(`wait:${heartbeat.elapsedSeconds}:${heartbeat.shouldLog}`)
+        events.push(`wait:${heartbeat.elapsedSeconds}`)
       },
     }
 
@@ -137,10 +137,10 @@ describe('runAsrTranscription', () => {
 
     await pending
     expect(events).toEqual([
-      'upload:25/100:25:true',
+      'upload:25/100:25',
       'upload-complete',
-      'wait:10:true',
-      'wait:20:true',
+      'wait:10',
+      'wait:20',
     ])
   })
 
@@ -198,7 +198,74 @@ describe('runAsrTranscription', () => {
 
     xhr.onload?.()
 
-    await expect(pending).rejects.toThrow('响应解析失败')
+    await expect(pending).rejects.toThrow('响应解析失败 (HTTP 200)')
+  })
+
+  it('rejects network errors and clears heartbeat timers', async () => {
+    const xhr = new FakeXMLHttpRequest()
+    let clearedTimers = 0
+    const pending = runAsrTranscription(
+      new File(['audio'], 'test.mp3'),
+      normalizeAsrRunSettings(buildSettings()),
+      {},
+      {
+        requestFactory: () => xhr as unknown as XMLHttpRequest,
+        setIntervalFn: () => 1 as unknown as ReturnType<typeof setInterval>,
+        clearIntervalFn: () => {
+          clearedTimers += 1
+        },
+      }
+    )
+
+    xhr.upload.onload?.({} as ProgressEvent)
+    xhr.onerror?.()
+
+    await expect(pending).rejects.toThrow('网络错误')
+    expect(clearedTimers).toBe(1)
+  })
+
+  it('rejects request timeouts and clears heartbeat timers', async () => {
+    const xhr = new FakeXMLHttpRequest()
+    let clearedTimers = 0
+    const pending = runAsrTranscription(
+      new File(['audio'], 'test.mp3'),
+      normalizeAsrRunSettings(buildSettings()),
+      {},
+      {
+        requestFactory: () => xhr as unknown as XMLHttpRequest,
+        setIntervalFn: () => 1 as unknown as ReturnType<typeof setInterval>,
+        clearIntervalFn: () => {
+          clearedTimers += 1
+        },
+      }
+    )
+
+    xhr.upload.onload?.({} as ProgressEvent)
+    xhr.ontimeout?.()
+
+    await expect(pending).rejects.toThrow('请求超时')
+    expect(clearedTimers).toBe(1)
+  })
+
+  it('ignores non-computable upload progress events', async () => {
+    const xhr = new FakeXMLHttpRequest()
+    let progressCalls = 0
+    const pending = runAsrTranscription(
+      new File(['audio'], 'test.mp3'),
+      normalizeAsrRunSettings(buildSettings()),
+      {
+        onUploadProgress: () => {
+          progressCalls += 1
+        },
+      },
+      { requestFactory: () => xhr as unknown as XMLHttpRequest }
+    )
+
+    xhr.upload.onprogress?.({ lengthComputable: false, loaded: 1, total: 10 } as ProgressEvent)
+    xhr.onload?.()
+
+    await pending
+    expect(progressCalls).toBe(0)
   })
 
   it('rejects with AbortError when the signal is already aborted before send', async () => {
