@@ -12,6 +12,7 @@ export type PolishStreamState = {
 
 export type PolishStreamConsumeResult = PolishStreamState & {
   warnings: PolishStreamParseWarning[]
+  completedNormally: boolean
 }
 
 export type PolishStreamCallbacks = {
@@ -26,7 +27,7 @@ export const parsePolishStreamLine = (
   rawLine: string,
   state: PolishStreamState
 ): { state: PolishStreamState; warning?: PolishStreamParseWarning; done: boolean; changed: boolean } => {
-  const line = rawLine.trimEnd()
+  const line = rawLine.endsWith('\r') ? rawLine.slice(0, -1) : rawLine
   if (!line.startsWith('data:')) {
     return { state, done: false, changed: false }
   }
@@ -66,10 +67,23 @@ export const parsePolishStreamLine = (
   }
 }
 
-export const getPolishCompletionLog = ({ text, finishReason }: PolishStreamState): {
+export const getPolishCompletionLog = ({
+  text,
+  finishReason,
+  completedNormally = true,
+}: PolishStreamState & { completedNormally?: boolean }): {
   message: string
   type: 'success' | 'warning' | 'info'
 } => {
+  if (!text && finishReason === 'content_filter') {
+    return { message: '润色无内容: 内容触发安全过滤', type: 'warning' }
+  }
+
+  if (!completedNormally) {
+    if (!text) return { message: '润色流异常结束: 未收到结束标记', type: 'warning' }
+    return { message: `润色流异常结束: 未收到结束标记 (已输出 ${text.length} 字符)`, type: 'warning' }
+  }
+
   if (!text) {
     return { message: '润色完成但无内容返回', type: 'warning' }
   }
@@ -136,5 +150,5 @@ export const consumePolishStream = async (
   if (buffer && !doneEventReceived) {
     for (const line of buffer.split('\n')) handleLine(line)
   }
-  return { ...state, warnings }
+  return { ...state, warnings, completedNormally: doneEventReceived }
 }
