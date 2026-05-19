@@ -45,13 +45,6 @@ export async function POST(req: NextRequest): Promise<Response> {
       return NextResponse.json({ error: error.message }, { status: error.status })
     }
 
-    if (error instanceof Error && error.name === 'AbortError') {
-      if (req.signal.aborted) {
-        return NextResponse.json({ error: '请求已取消' }, { status: 499 })
-      }
-      return NextResponse.json({ error: '请求超时，请稍后重试' }, { status: 504 })
-    }
-
     const errorMsg = error instanceof Error ? error.message : String(error)
     return NextResponse.json({ error: `代理音频失败: ${errorMsg}` }, { status: 500 })
   }
