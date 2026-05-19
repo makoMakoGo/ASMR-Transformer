@@ -40,6 +40,15 @@ describe('parsePolishStreamLine', () => {
     })
   })
 
+  it('supports SSE data lines without a space after the colon', () => {
+    const parsed = parsePolishStreamLine(
+      'data:{"choices":[{"delta":{"content":"ok"},"finish_reason":"stop"}]}',
+      { text: '', finishReason: null }
+    )
+
+    expect(parsed.state).toEqual({ text: 'ok', finishReason: 'stop' })
+  })
+
   it('returns a warning for malformed JSON chunks', () => {
     const parsed = parsePolishStreamLine('data: {"choices":[', { text: '', finishReason: null })
 
@@ -84,6 +93,24 @@ describe('consumePolishStream', () => {
     expect(result.text).toBe('ok')
     expect(result.finishReason).toBe('length')
     expect(warnings).toEqual(['{"choices":['])
+  })
+
+  it('cancels the reader after a DONE event', async () => {
+    let canceled = false
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        const encoder = new TextEncoder()
+        controller.enqueue(encoder.encode('data: [DONE]\n'))
+      },
+      cancel() {
+        canceled = true
+      },
+    })
+
+    const result = await consumePolishStream(stream)
+
+    expect(result.text).toBe('')
+    expect(canceled).toBe(true)
   })
 })
 

@@ -27,11 +27,12 @@ export const parsePolishStreamLine = (
   state: PolishStreamState
 ): { state: PolishStreamState; warning?: PolishStreamParseWarning; done: boolean; changed: boolean } => {
   const line = rawLine.trimEnd()
-  if (!line.startsWith('data: ')) {
+  if (!line.startsWith('data:')) {
     return { state, done: false, changed: false }
   }
 
-  const data = line.slice(6)
+  let data = line.slice(5)
+  if (data.startsWith(' ')) data = data.slice(1)
   if (data === '[DONE]') {
     return { state, done: true, changed: false }
   }
@@ -112,21 +113,28 @@ export const consumePolishStream = async (
     if (parsed.done) doneEventReceived = true
   }
 
-  while (!doneEventReceived) {
-    const { done, value } = await reader.read()
-    if (done) break
-    if (!value) continue
+  try {
+    while (!doneEventReceived) {
+      const { done, value } = await reader.read()
+      if (done) break
+      if (!value) continue
 
-    buffer += decoder.decode(value, { stream: true })
-    const lines = buffer.split('\n')
-    buffer = lines.pop() ?? ''
-    for (const line of lines) handleLine(line)
+      buffer += decoder.decode(value, { stream: true })
+      const lines = buffer.split('\n')
+      buffer = lines.pop() ?? ''
+      for (const line of lines) handleLine(line)
+    }
+
+    if (doneEventReceived) {
+      await reader.cancel()
+    }
+  } finally {
+    reader.releaseLock()
   }
 
   buffer += decoder.decode()
   if (buffer && !doneEventReceived) {
     for (const line of buffer.split('\n')) handleLine(line)
   }
-
   return { ...state, warnings }
 }
