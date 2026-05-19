@@ -162,9 +162,6 @@ export const useTranscriptionFlow = ({
         },
       })
 
-      setStatus('transcribing')
-      setStatusMessage('正在识别语音...')
-
       if (!response.ok) {
         const errorMessage = formatAsrApiErrorMessage(response)
         setFlowError(errorMessage, '转录失败')

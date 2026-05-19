@@ -86,7 +86,7 @@ export const runAsrTranscription = async (
     xhr.upload.onprogress = (event) => {
       if (!event.lengthComputable) return
 
-      const percent = Math.round((event.loaded / event.total) * 100)
+      const percent = event.total > 0 ? Math.round((event.loaded / event.total) * 100) : 0
       callbacks.onUploadProgress?.({
         loaded: event.loaded,
         total: event.total,
@@ -100,7 +100,7 @@ export const runAsrTranscription = async (
       const startedAt = now()
       let lastHeartbeat = 0
       waitTimer = setIntervalFn(() => {
-        const elapsedSeconds = Math.floor((now() - startedAt) / 1000)
+        const elapsedSeconds = Math.max(0, Math.floor((now() - startedAt) / 1000))
         const shouldLog = elapsedSeconds > 0 && elapsedSeconds % 10 === 0 && elapsedSeconds !== lastHeartbeat
         if (shouldLog) lastHeartbeat = elapsedSeconds
         callbacks.onWaitHeartbeat?.({ elapsedSeconds, shouldLog })
@@ -110,7 +110,10 @@ export const runAsrTranscription = async (
     xhr.onload = () => {
       stopWaitTimer()
       try {
-        const data = JSON.parse(xhr.responseText) as Record<string, unknown>
+        const parsed = JSON.parse(xhr.responseText)
+        const data = parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+          ? parsed as Record<string, unknown>
+          : {}
         resolve({
           ok: xhr.status >= 200 && xhr.status < 300,
           status: xhr.status,

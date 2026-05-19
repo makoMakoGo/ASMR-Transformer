@@ -139,6 +139,48 @@ describe('runAsrTranscription', () => {
     ])
   })
 
+  it('guards zero upload totals, negative elapsed time, and null JSON payloads', async () => {
+    const xhr = new FakeXMLHttpRequest()
+    let now = 1000
+    let intervalHandler: (() => void) | null = null
+    const events: Array<string> = []
+    xhr.responseText = 'null'
+    const pending = runAsrTranscription(
+      new File(['audio'], 'test.mp3'),
+      normalizeAsrRunSettings(buildSettings()),
+      {
+        onUploadProgress: (progress) => {
+          events.push(`upload:${progress.percent}`)
+        },
+        onWaitHeartbeat: (heartbeat) => {
+          events.push(`wait:${heartbeat.elapsedSeconds}`)
+        },
+      },
+      {
+        requestFactory: () => xhr as unknown as XMLHttpRequest,
+        now: () => now,
+        setIntervalFn: (handler) => {
+          intervalHandler = handler
+          return 1 as unknown as ReturnType<typeof setInterval>
+        },
+        clearIntervalFn: () => undefined,
+      }
+    )
+
+    xhr.upload.onprogress?.({ lengthComputable: true, loaded: 1, total: 0 } as ProgressEvent)
+    xhr.upload.onload?.({} as ProgressEvent)
+    now = 0
+    intervalHandler?.()
+    xhr.onload?.()
+
+    await expect(pending).resolves.toMatchObject({
+      ok: true,
+      data: {},
+      text: '',
+    })
+    expect(events).toEqual(['upload:0', 'wait:0'])
+  })
+
   it('rejects invalid JSON responses', async () => {
     const xhr = new FakeXMLHttpRequest()
     xhr.responseText = 'not-json'
