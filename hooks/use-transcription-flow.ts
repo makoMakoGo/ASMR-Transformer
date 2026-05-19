@@ -135,16 +135,19 @@ export const useTranscriptionFlow = ({
       return
     }
 
+    const previousController = transcribeAbortRef.current
+    previousController?.abort()
+    const controller = new AbortController()
+    transcribeAbortRef.current = controller
+    const isCurrentRun = () => transcribeAbortRef.current === controller
+    let lastHeartbeat = 0
+
     beginRun('正在上传到识别服务...', skipClearLogs)
+    if (previousController) addLog('已取消上一次转录请求', 'info')
     addLog(`开始处理文件: ${file.name}`, 'info')
     addLog(`文件大小: ${formatFileSize(file.size)}`, 'info')
     addLog(`目标 API: ${effectiveSettings.apiUrl}`, 'info')
     addLog(`使用模型: ${effectiveSettings.model}`, 'info')
-
-    transcribeAbortRef.current?.abort()
-    const controller = new AbortController()
-    transcribeAbortRef.current = controller
-    let lastHeartbeat = 0
 
     try {
       addLog('正在上传文件...', 'info')
@@ -152,6 +155,7 @@ export const useTranscriptionFlow = ({
 
       const response = await runAsrTranscription(file, effectiveSettings, {
         onUploadProgress: (progress) => {
+          if (!isCurrentRun()) return
           setUploadProgress(progress.percent)
           setStatusMessage(`正在上传 ${formatFileSize(progress.loaded)} / ${formatFileSize(progress.total)}`)
           if (progress.percent % 25 === 0 || progress.percent === 100) {
@@ -159,11 +163,13 @@ export const useTranscriptionFlow = ({
           }
         },
         onUploadComplete: () => {
+          if (!isCurrentRun()) return
           setStatus('transcribing')
           setStatusMessage('正在识别语音... 已等待 0s')
           addLog('上传完成，正在识别语音...', 'success')
         },
         onWaitHeartbeat: (heartbeat) => {
+          if (!isCurrentRun()) return
           setStatusMessage(`正在识别语音... 已等待 ${heartbeat.elapsedSeconds}s`)
           const shouldLog =
             heartbeat.elapsedSeconds > 0 &&
@@ -176,6 +182,8 @@ export const useTranscriptionFlow = ({
         },
       }, { signal: controller.signal })
 
+      if (!isCurrentRun()) return
+
       if (!response.ok) {
         const errorMessage = formatAsrApiErrorMessage(response)
         setFlowError(errorMessage, '转录失败')
@@ -185,6 +193,8 @@ export const useTranscriptionFlow = ({
 
       finishTranscription(response.text)
     } catch (e) {
+      if (!isCurrentRun()) return
+
       if (e instanceof DOMException && e.name === 'AbortError') {
         addLog('转录已取消', 'info')
         setStatus('idle')
@@ -195,10 +205,10 @@ export const useTranscriptionFlow = ({
       setFlowError(`请求失败: ${errorMsg}`, '请求失败')
       addLog(`请求失败: ${errorMsg}`, 'error')
     } finally {
-      if (transcribeAbortRef.current === controller) {
+      if (isCurrentRun()) {
         transcribeAbortRef.current = null
+        setLoading(false)
       }
-      setLoading(false)
     }
   }
 
