@@ -1,12 +1,17 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   buildRemoteAudioMetadata,
   checkRemoteAudio,
   DEFAULT_REMOTE_AUDIO_USER_AGENT,
+  getMaxRemoteAudioSizeMessage,
   proxyRemoteAudio,
   RemoteAudioError,
   resolveRemoteAudioSource,
 } from '@/lib/remote-audio'
+
+afterEach(() => {
+  vi.useRealTimers()
+})
 
 describe('resolveRemoteAudioSource', () => {
   it('keeps direct audio urls unchanged', async () => {
@@ -146,6 +151,60 @@ describe('checkRemoteAudio', () => {
       message: 'HTTP 404: Not Found',
     })
   })
+
+  it('normalizes source HEAD network failures', async () => {
+    const fetchFn = async () => {
+      throw new Error('socket closed')
+    }
+
+    await expect(
+      checkRemoteAudio('https://www.asmrgay.com/d/audio/test.mp3', { fetchFn })
+    ).rejects.toMatchObject({
+      code: 'SOURCE_HEAD_FAILED',
+      status: 500,
+      message: '检查失败: socket closed',
+    })
+  })
+
+  it('normalizes caller aborts during checks', async () => {
+    const controller = new AbortController()
+    controller.abort()
+    const fetchFn = async (_url: string, init?: RequestInit) => {
+      if (init?.signal?.aborted) throw new DOMException('aborted', 'AbortError')
+      return new Response(null, { status: 200 })
+    }
+
+    await expect(
+      checkRemoteAudio('https://www.asmrgay.com/d/audio/test.mp3', {
+        fetchFn,
+        signal: controller.signal,
+      })
+    ).rejects.toMatchObject({
+      code: 'REQUEST_ABORTED',
+      status: 499,
+    })
+  })
+
+  it('normalizes check timeouts', async () => {
+    vi.useFakeTimers()
+    const fetchFn = async (_url: string, init?: RequestInit) =>
+      new Promise<Response>((_resolve, reject) => {
+        init?.signal?.addEventListener('abort', () => {
+          reject(new DOMException('aborted', 'AbortError'))
+        })
+      })
+    const pending = checkRemoteAudio('https://www.asmrgay.com/d/audio/test.mp3', {
+      fetchFn,
+      timeoutMs: 1000,
+    }).catch((error: unknown) => error)
+
+    await vi.advanceTimersByTimeAsync(1000)
+    await expect(pending).resolves.toMatchObject({
+      code: 'REQUEST_TIMEOUT',
+      status: 504,
+      message: '检查超时（HEAD 阶段）',
+    })
+  })
 })
 
 describe('proxyRemoteAudio', () => {
@@ -211,7 +270,37 @@ describe('proxyRemoteAudio', () => {
     ).rejects.toMatchObject({
       code: 'AUDIO_TOO_LARGE',
       status: 413,
-      message: '音频文件过大，超过 0MB 限制',
+      message: '音频文件过大，超过 1KB 限制',
     })
+  })
+
+  it('rejects response content-length that exceeds the configured size limit', async () => {
+    const fetchFn = async () =>
+      new Response(new ReadableStream<Uint8Array>(), {
+        status: 200,
+        headers: {
+          'content-length': '11',
+          'content-type': 'audio/mpeg',
+        },
+      })
+
+    await expect(
+      proxyRemoteAudio('https://www.asmrgay.com/d/audio/test.mp3', {
+        fetchFn,
+        maxAudioBytes: 10,
+      })
+    ).rejects.toMatchObject({
+      code: 'AUDIO_TOO_LARGE',
+      status: 413,
+      message: '音频文件过大，超过 1KB 限制',
+    })
+  })
+})
+
+describe('getMaxRemoteAudioSizeMessage', () => {
+  it('uses KB for sub-MB limits and MB for larger limits', () => {
+    expect(getMaxRemoteAudioSizeMessage(10)).toBe('音频文件过大，超过 1KB 限制')
+    expect(getMaxRemoteAudioSizeMessage(512 * 1024)).toBe('音频文件过大，超过 512KB 限制')
+    expect(getMaxRemoteAudioSizeMessage(100 * 1024 * 1024)).toBe('音频文件过大，超过 100MB 限制')
   })
 })
