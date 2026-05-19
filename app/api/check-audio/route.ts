@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import {
-  buildRemoteAudioMetadata,
+  checkRemoteAudio,
   DEFAULT_REMOTE_AUDIO_USER_AGENT,
   RemoteAudioError,
-  resolveRemoteAudioSource,
 } from '@/lib/remote-audio'
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
@@ -20,31 +19,13 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   }
 
   try {
-    const source = await resolveRemoteAudioSource(
+    const { source, metadata } = await checkRemoteAudio(
       url,
-      (fetchUrl, init) => fetch(fetchUrl, init),
-      DEFAULT_REMOTE_AUDIO_USER_AGENT
+      {
+        fetchFn: (fetchUrl, init) => fetch(fetchUrl, init),
+        userAgent: DEFAULT_REMOTE_AUDIO_USER_AGENT,
+      }
     )
-    const response = await fetch(source.resolvedUrl, {
-      method: 'HEAD',
-      headers: {
-        'User-Agent': DEFAULT_REMOTE_AUDIO_USER_AGENT,
-      },
-    })
-
-    if (!response.ok) {
-      return NextResponse.json(
-        { success: false, error: `HTTP ${response.status}: ${response.statusText}` },
-        { status: 400 }
-      )
-    }
-
-    const metadata = buildRemoteAudioMetadata({
-      source,
-      contentLength: response.headers.get('content-length'),
-      contentType: response.headers.get('content-type'),
-      contentDisposition: response.headers.get('content-disposition'),
-    })
 
     return NextResponse.json({
       success: true,
