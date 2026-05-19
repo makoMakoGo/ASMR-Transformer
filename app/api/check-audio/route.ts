@@ -23,6 +23,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       url,
       {
         fetchFn: (fetchUrl, init) => fetch(fetchUrl, init),
+        signal: request.signal,
         userAgent: DEFAULT_REMOTE_AUDIO_USER_AGENT,
       }
     )
