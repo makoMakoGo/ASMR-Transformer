@@ -12,9 +12,14 @@ import {
 import { DEFAULT_SETTINGS, type Settings } from '@/lib/app-settings'
 
 const tempDirs: string[] = []
+const originalEnv = { ...process.env }
 
 afterEach(async () => {
   await Promise.all(tempDirs.splice(0).map((dir) => fs.rm(dir, { recursive: true, force: true })))
+  for (const key of Object.keys(process.env)) {
+    if (!(key in originalEnv)) delete process.env[key]
+  }
+  Object.assign(process.env, originalEnv)
 })
 
 const buildSettings = (overrides: Partial<Settings> = {}): Settings => ({
