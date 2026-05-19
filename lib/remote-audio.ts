@@ -7,12 +7,20 @@ import {
 } from '@/lib/url-utils'
 
 export const DEFAULT_REMOTE_AUDIO_USER_AGENT = 'Mozilla/5.0 (ASMR-Transformer/1.0)'
+export const DEFAULT_REMOTE_AUDIO_FETCH_TIMEOUT_MS = 120_000
 
 export type RemoteAudioErrorCode =
   | AudioUrlValidationError
   | 'ALIST_RESOLVE_FAILED'
   | 'UNSUPPORTED_WMA'
   | 'UNSUPPORTED_AUDIO'
+  | 'SOURCE_HEAD_FAILED'
+  | 'SOURCE_CONNECT_FAILED'
+  | 'SOURCE_RESPONSE_FAILED'
+  | 'SOURCE_BODY_MISSING'
+  | 'AUDIO_TOO_LARGE'
+  | 'REQUEST_ABORTED'
+  | 'REQUEST_TIMEOUT'
 
 export class RemoteAudioError extends Error {
   readonly code: RemoteAudioErrorCode
@@ -41,6 +49,31 @@ export type RemoteAudioMetadata = {
   fileSize: number
   contentType: string
   contentLength?: string
+}
+
+export type RemoteAudioCheckResult = {
+  source: ResolvedRemoteAudioSource
+  metadata: RemoteAudioMetadata
+}
+
+export type RemoteAudioProxyResult = {
+  source: ResolvedRemoteAudioSource
+  metadata: RemoteAudioMetadata
+  body: ReadableStream<Uint8Array>
+  headers: Headers
+}
+
+export type RemoteAudioFetchFn = (url: string, init?: RequestInit) => Promise<Response>
+
+type RemoteAudioRequestOptions = {
+  fetchFn?: RemoteAudioFetchFn
+  signal?: AbortSignal
+  userAgent?: string
+}
+
+type ProxyRemoteAudioOptions = RemoteAudioRequestOptions & {
+  maxAudioBytes: number
+  timeoutMs?: number
 }
 
 const VALIDATION_MESSAGES: Record<AudioUrlValidationError, { message: string; status: number }> = {
@@ -104,6 +137,207 @@ export const resolveRemoteAudioSource = async (
       throw new RemoteAudioError('ALIST_RESOLVE_FAILED', `解析播放页面失败: ${error.message}`, 400)
     }
     throw new RemoteAudioError('ALIST_RESOLVE_FAILED', '解析播放页面失败', 400)
+  }
+}
+
+export const getMaxRemoteAudioSizeMessage = (maxAudioBytes: number): string => {
+  const maxMB = Math.round(maxAudioBytes / (1024 * 1024))
+  return `音频文件过大，超过 ${maxMB}MB 限制`
+}
+
+const getErrorMessage = (error: unknown): string => error instanceof Error ? error.message : String(error)
+
+const isAbortError = (error: unknown): boolean => error instanceof Error && error.name === 'AbortError'
+
+const buildAbortError = (signal: AbortSignal | undefined, timeoutMessage: string): RemoteAudioError => {
+  if (signal?.aborted) {
+    return new RemoteAudioError('REQUEST_ABORTED', '请求已取消', 499)
+  }
+
+  return new RemoteAudioError('REQUEST_TIMEOUT', timeoutMessage, 504)
+}
+
+const withUserAgent = (userAgent: string): Record<string, string> => ({
+  'User-Agent': userAgent,
+})
+
+const createCombinedSignal = (timeoutController: AbortController, signal?: AbortSignal): AbortSignal => {
+  if (!signal) return timeoutController.signal
+  return AbortSignal.any([signal, timeoutController.signal])
+}
+
+export const checkRemoteAudio = async (
+  inputUrl: string,
+  options: RemoteAudioRequestOptions = {}
+): Promise<RemoteAudioCheckResult> => {
+  const {
+    fetchFn = fetch,
+    signal,
+    userAgent = DEFAULT_REMOTE_AUDIO_USER_AGENT,
+  } = options
+
+  const source = await resolveRemoteAudioSource(
+    inputUrl,
+    (fetchUrl, init) => fetchFn(fetchUrl, { ...init, signal }),
+    userAgent
+  )
+
+  let response: Response
+  try {
+    response = await fetchFn(source.resolvedUrl, {
+      method: 'HEAD',
+      signal,
+      headers: withUserAgent(userAgent),
+    })
+  } catch (error) {
+    if (isAbortError(error)) throw error
+    throw new RemoteAudioError('SOURCE_HEAD_FAILED', `检查失败: ${getErrorMessage(error)}`, 500)
+  }
+
+  if (!response.ok) {
+    throw new RemoteAudioError(
+      'SOURCE_RESPONSE_FAILED',
+      `HTTP ${response.status}: ${response.statusText}`,
+      400
+    )
+  }
+
+  return {
+    source,
+    metadata: buildRemoteAudioMetadata({
+      source,
+      contentLength: response.headers.get('content-length'),
+      contentType: response.headers.get('content-type'),
+      contentDisposition: response.headers.get('content-disposition'),
+    }),
+  }
+}
+
+const buildRemoteAudioProxyHeaders = (metadata: RemoteAudioMetadata): Headers => {
+  const headers = new Headers({
+    'Content-Type': metadata.contentType,
+    'X-File-Name': encodeURIComponent(metadata.fileName),
+    'Cache-Control': 'no-cache',
+  })
+
+  if (metadata.contentLength) {
+    headers.set('Content-Length', metadata.contentLength)
+  }
+
+  return headers
+}
+
+const limitRemoteAudioStream = (
+  body: ReadableStream<Uint8Array>,
+  maxAudioBytes: number,
+  signal?: AbortSignal
+): ReadableStream<Uint8Array> => {
+  let bytesRead = 0
+
+  return body.pipeThrough(
+    new TransformStream<Uint8Array, Uint8Array>({
+      transform(chunk, controller) {
+        if (signal?.aborted) {
+          controller.error(new Error('CLIENT_DISCONNECTED'))
+          return
+        }
+
+        bytesRead += chunk.byteLength
+        if (bytesRead > maxAudioBytes) {
+          controller.error(new Error('MAX_AUDIO_BYTES_EXCEEDED'))
+          return
+        }
+
+        controller.enqueue(chunk)
+      },
+    })
+  )
+}
+
+export const proxyRemoteAudio = async (
+  inputUrl: string,
+  options: ProxyRemoteAudioOptions
+): Promise<RemoteAudioProxyResult> => {
+  const {
+    fetchFn = fetch,
+    maxAudioBytes,
+    signal,
+    timeoutMs = DEFAULT_REMOTE_AUDIO_FETCH_TIMEOUT_MS,
+    userAgent = DEFAULT_REMOTE_AUDIO_USER_AGENT,
+  } = options
+  const timeoutController = new AbortController()
+  const timeoutId = setTimeout(() => timeoutController.abort(), timeoutMs)
+  const combinedSignal = createCombinedSignal(timeoutController, signal)
+
+  try {
+    let source: ResolvedRemoteAudioSource
+    try {
+      source = await resolveRemoteAudioSource(
+        inputUrl,
+        (fetchUrl, init) => fetchFn(fetchUrl, { ...init, signal: combinedSignal }),
+        userAgent
+      )
+    } catch (error) {
+      if (isAbortError(error)) {
+        throw buildAbortError(signal, '解析播放页面超时')
+      }
+      throw error
+    }
+
+    if (typeof source.fileSizeHint === 'number' && source.fileSizeHint > maxAudioBytes) {
+      throw new RemoteAudioError('AUDIO_TOO_LARGE', getMaxRemoteAudioSizeMessage(maxAudioBytes), 413)
+    }
+
+    let audioResponse: Response
+    try {
+      audioResponse = await fetchFn(source.resolvedUrl, {
+        method: 'GET',
+        redirect: 'follow',
+        signal: combinedSignal,
+        headers: {
+          ...withUserAgent(userAgent),
+          Referer: source.resolvedUrlObject.origin,
+        },
+      })
+    } catch (error) {
+      if (isAbortError(error)) {
+        throw buildAbortError(signal, '连接超时，请稍后重试')
+      }
+      throw new RemoteAudioError('SOURCE_CONNECT_FAILED', `无法连接音频源: ${getErrorMessage(error)}`, 502)
+    }
+
+    if (!audioResponse.ok) {
+      throw new RemoteAudioError(
+        'SOURCE_RESPONSE_FAILED',
+        `音频源返回错误 (${audioResponse.status})`,
+        audioResponse.status >= 500 ? 502 : 400
+      )
+    }
+
+    const metadata = buildRemoteAudioMetadata({
+      source,
+      contentType: audioResponse.headers.get('content-type'),
+      contentDisposition: audioResponse.headers.get('content-disposition'),
+      contentLength: audioResponse.headers.get('content-length'),
+      fallbackName: 'audio',
+    })
+
+    if (metadata.fileSize > maxAudioBytes) {
+      throw new RemoteAudioError('AUDIO_TOO_LARGE', getMaxRemoteAudioSizeMessage(maxAudioBytes), 413)
+    }
+
+    if (!audioResponse.body) {
+      throw new RemoteAudioError('SOURCE_BODY_MISSING', '无法读取音频数据流', 500)
+    }
+
+    return {
+      source,
+      metadata,
+      headers: buildRemoteAudioProxyHeaders(metadata),
+      body: limitRemoteAudioStream(audioResponse.body, maxAudioBytes, signal),
+    }
+  } finally {
+    clearTimeout(timeoutId)
   }
 }
 
