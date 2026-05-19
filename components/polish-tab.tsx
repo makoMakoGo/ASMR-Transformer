@@ -1,5 +1,3 @@
-'use client'
-
 import type { usePolishFlow } from '@/hooks/use-polish-flow'
 
 type PolishFlow = ReturnType<typeof usePolishFlow>

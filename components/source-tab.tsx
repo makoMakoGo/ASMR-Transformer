@@ -1,10 +1,23 @@
-'use client'
-
 import { formatFileSize } from '@/lib/file-size'
 import { PROCESSING_STATUS_CONFIG } from '@/lib/transcription-state'
 import type { useTranscriptionFlow } from '@/hooks/use-transcription-flow'
 
-type TranscriptionFlow = ReturnType<typeof useTranscriptionFlow>
+type SourceTabTranscriptionFlow = Pick<
+  ReturnType<typeof useTranscriptionFlow>,
+  | 'fileInputRef'
+  | 'handleFileChange'
+  | 'audioUrlInput'
+  | 'setAudioUrlInput'
+  | 'checkAudioUrl'
+  | 'checking'
+  | 'audioInfo'
+  | 'loading'
+  | 'clearAudio'
+  | 'startTranscribe'
+  | 'status'
+  | 'uploadProgress'
+  | 'statusMessage'
+>
 
 export function SourceTab({
   transcriptionFlow,
@@ -12,7 +25,7 @@ export function SourceTab({
   canTranscribe,
   showIndeterminateProgress,
 }: {
-  transcriptionFlow: TranscriptionFlow
+  transcriptionFlow: SourceTabTranscriptionFlow
   hasApiKey: boolean
   canTranscribe: boolean
   showIndeterminateProgress: boolean
@@ -38,7 +51,7 @@ export function SourceTab({
             <svg className="w-8 h-8 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
             </svg>
-            <p className="text-sm text-foreground">点击选择或拖拽音频文件</p>
+            <p className="text-sm text-foreground">点击选择音频文件</p>
             <p className="text-xs text-muted-foreground">支持 mp3, wav, m4a, flac...</p>
           </div>
         </div>
