@@ -56,6 +56,14 @@ describe('parsePolishStreamLine', () => {
     expect(parsed.warning?.chunk).toBe('{"choices":[')
     expect(parsed.changed).toBe(false)
   })
+
+  it('returns a warning for whitespace-only data lines', () => {
+    const parsed = parsePolishStreamLine('data:   ', { text: '', finishReason: null })
+
+    expect(parsed.warning?.message).toBeTruthy()
+    expect(parsed.warning?.chunk).toBe('  ')
+    expect(parsed.changed).toBe(false)
+  })
 })
 
 describe('consumePolishStream', () => {
@@ -95,6 +103,40 @@ describe('consumePolishStream', () => {
     expect(warnings).toEqual(['{"choices":['])
   })
 
+  it('processes trailing buffered content when the stream closes without DONE', async () => {
+    const updates: string[] = []
+    const result = await consumePolishStream(
+      encodeStream([
+        'data: {"choices":[{"delta":{"content":"尾段"},"finish_reason":"stop"}]}',
+      ]),
+      {
+        onContent: ({ text }) => updates.push(text),
+      }
+    )
+
+    expect(result.text).toBe('尾段')
+    expect(result.finishReason).toBe('stop')
+    expect(result.completedNormally).toBe(false)
+    expect(updates).toEqual(['尾段'])
+  })
+
+  it('propagates read errors and still releases the reader lock', async () => {
+    let released = false
+    const stream = {
+      getReader: () => ({
+        read: async () => {
+          throw new Error('stream aborted')
+        },
+        releaseLock: () => {
+          released = true
+        },
+      }),
+    } as unknown as ReadableStream<Uint8Array>
+
+    await expect(consumePolishStream(stream)).rejects.toThrow('stream aborted')
+    expect(released).toBe(true)
+  })
+
   it('cancels the reader after a DONE event', async () => {
     let canceled = false
     const stream = new ReadableStream<Uint8Array>({
@@ -120,6 +162,10 @@ describe('getPolishCompletionLog', () => {
       message: '润色完成但无内容返回',
       type: 'warning',
     })
+    expect(getPolishCompletionLog({ text: '', finishReason: 'content_filter' })).toEqual({
+      message: '润色无内容: 内容触发安全过滤',
+      type: 'warning',
+    })
     expect(getPolishCompletionLog({ text: 'abc', finishReason: 'stop' })).toEqual({
       message: '润色完成! 文本长度: 3 字符',
       type: 'success',
@@ -135,6 +181,14 @@ describe('getPolishCompletionLog', () => {
     expect(getPolishCompletionLog({ text: 'abc', finishReason: null })).toEqual({
       message: '润色结束 (finish_reason=未知), 文本长度: 3 字符',
       type: 'info',
+    })
+    expect(getPolishCompletionLog({ text: '', finishReason: null, completedNormally: false })).toEqual({
+      message: '润色流异常结束: 未收到结束标记',
+      type: 'warning',
+    })
+    expect(getPolishCompletionLog({ text: 'abc', finishReason: 'stop', completedNormally: false })).toEqual({
+      message: '润色流异常结束: 未收到结束标记 (已输出 3 字符)',
+      type: 'warning',
     })
   })
 })
