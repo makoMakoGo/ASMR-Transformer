@@ -1,6 +1,15 @@
+import type { ReactElement } from 'react'
 import type { usePolishFlow } from '@/hooks/use-polish-flow'
 
 type PolishFlow = ReturnType<typeof usePolishFlow>
+
+type PolishTabProps = {
+  polishFlow: PolishFlow
+  transcribedText: string
+  polishedText: string
+  polishedDisplayText: string
+  canPolish: boolean
+}
 
 export function PolishTab({
   polishFlow,
@@ -8,13 +17,7 @@ export function PolishTab({
   polishedText,
   polishedDisplayText,
   canPolish,
-}: {
-  polishFlow: PolishFlow
-  transcribedText: string
-  polishedText: string
-  polishedDisplayText: string
-  canPolish: boolean
-}) {
+}: PolishTabProps): ReactElement {
   return (
     <div role="tabpanel" id="tabpanel-polish" aria-labelledby="tab-polish" className="space-y-4 animate-fade-in">
       <div className="flex items-center gap-2">

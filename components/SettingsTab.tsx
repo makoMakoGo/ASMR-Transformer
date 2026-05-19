@@ -1,4 +1,5 @@
-import { DEFAULT_SETTINGS, type Settings } from '@/lib/app-settings'
+import type { ReactElement } from 'react'
+import { DEFAULT_SETTINGS } from '@/lib/app-settings'
 import type { useSettingsState } from '@/hooks/use-settings-state'
 
 type SettingsTabState = Pick<
@@ -30,7 +31,7 @@ export function SettingsTab({
   reloadSettingsFromEnv,
   saveSettingsToEnv,
   discardLocalChanges,
-}: SettingsTabState) {
+}: SettingsTabState): ReactElement {
   return (
     <div role="tabpanel" id="tabpanel-settings" aria-labelledby="tab-settings" className="space-y-5 animate-fade-in">
       <div className="space-y-2">

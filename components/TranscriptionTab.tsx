@@ -1,3 +1,4 @@
+import type { ReactElement } from 'react'
 import type { usePolishFlow } from '@/hooks/use-polish-flow'
 import type { useTranscriptionFlow } from '@/hooks/use-transcription-flow'
 
@@ -7,19 +8,21 @@ type TranscriptionTabTranscriptionFlow = Pick<
   'copyTranscription' | 'copied' | 'transcriptionResult'
 >
 
+type TranscriptionTabProps = {
+  polishFlow: TranscriptionTabPolishFlow
+  transcriptionFlow: TranscriptionTabTranscriptionFlow
+  transcriptionDisplayText: string
+  transcriptionRawText: string
+  canPolish: boolean
+}
+
 export function TranscriptionTab({
   polishFlow,
   transcriptionFlow,
   transcriptionDisplayText,
   transcriptionRawText,
   canPolish,
-}: {
-  polishFlow: TranscriptionTabPolishFlow
-  transcriptionFlow: TranscriptionTabTranscriptionFlow
-  transcriptionDisplayText: string
-  transcriptionRawText: string
-  canPolish: boolean
-}) {
+}: TranscriptionTabProps): ReactElement {
   return (
     <div role="tabpanel" id="tabpanel-transcription" aria-labelledby="tab-transcription" className="space-y-4 animate-fade-in">
       <div className="flex items-center gap-2">

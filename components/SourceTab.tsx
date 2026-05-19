@@ -1,3 +1,4 @@
+import type { ReactElement } from 'react'
 import { formatFileSize } from '@/lib/file-size'
 import { PROCESSING_STATUS_CONFIG } from '@/lib/transcription-state'
 import type { useTranscriptionFlow } from '@/hooks/use-transcription-flow'
@@ -19,17 +20,19 @@ type SourceTabTranscriptionFlow = Pick<
   | 'statusMessage'
 >
 
+type SourceTabProps = {
+  transcriptionFlow: SourceTabTranscriptionFlow
+  hasApiKey: boolean
+  canTranscribe: boolean
+  showIndeterminateProgress: boolean
+}
+
 export function SourceTab({
   transcriptionFlow,
   hasApiKey,
   canTranscribe,
   showIndeterminateProgress,
-}: {
-  transcriptionFlow: SourceTabTranscriptionFlow
-  hasApiKey: boolean
-  canTranscribe: boolean
-  showIndeterminateProgress: boolean
-}) {
+}: SourceTabProps): ReactElement {
   return (
     <div role="tabpanel" id="tabpanel-source" aria-labelledby="tab-source" className="space-y-5 animate-fade-in">
       <div className="space-y-2">
