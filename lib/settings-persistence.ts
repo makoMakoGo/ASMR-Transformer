@@ -14,8 +14,8 @@ export type SettingsPersistenceResult = {
 }
 
 export const getSettingsEnvFilePath = ({
-  configuredEnvFile = process.env.APP_SETTINGS_ENV_FILE || '.env',
-  cwd = process.cwd(),
+  configuredEnvFile = /* turbopackIgnore: true */ process.env.APP_SETTINGS_ENV_FILE || '.env',
+  cwd = /* turbopackIgnore: true */ process.cwd(),
 }: {
   configuredEnvFile?: string
   cwd?: string
