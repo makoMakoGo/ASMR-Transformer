@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { normalizeSettingsForStorage, type Settings } from '@/lib/app-settings'
 import { readJsonResponse, readResponseErrorMessage } from '@/lib/http-response'
+import { consumePolishStream, getPolishCompletionLog } from '@/lib/polish-stream'
 import {
   getPolishText,
   hasPolishText,
@@ -92,67 +93,15 @@ export const usePolishFlow = ({
         return
       }
 
-      const reader = res.body.getReader()
-      const decoder = new TextDecoder()
-      let fullContent = ''
-      let buffer = ''
-      let finishReason: string | null = null
-
-      const handleLine = (rawLine: string) => {
-        const line = rawLine.trimEnd()
-        if (!line.startsWith('data: ')) return
-
-        const data = line.slice(6)
-        if (data === '[DONE]') return
-
-        try {
-          const parsed = JSON.parse(data)
-          const choice = parsed.choices?.[0]
-          const content = choice?.delta?.content || ''
-          if (content) {
-            fullContent += content
-            setResult({ kind: 'streaming', text: fullContent })
-          }
-          if (choice?.finish_reason) {
-            finishReason = choice.finish_reason
-          }
-        } catch (e) {
-          const msg = e instanceof Error ? e.message : String(e)
-          const snippet = data.length > 160 ? `${data.slice(0, 160)}...` : data
-          addLog(`润色响应单块解析失败，已跳过: ${msg}; chunk=${snippet}`, 'warning')
-        }
-      }
-
-      while (true) {
-        const { done, value } = await reader.read()
-        if (done) break
-        if (!value) continue
-
-        buffer += decoder.decode(value, { stream: true })
-        const lines = buffer.split('\n')
-        buffer = lines.pop() ?? ''
-        for (const line of lines) handleLine(line)
-      }
-
-      buffer += decoder.decode()
-      if (buffer) {
-        for (const line of buffer.split('\n')) handleLine(line)
-      }
-
-      setResult({ kind: 'success', text: fullContent })
-      if (fullContent) {
-        if (finishReason === 'content_filter') {
-          addLog(`润色被截断: 内容触发安全过滤 (已输出 ${fullContent.length} 字符)`, 'warning')
-        } else if (finishReason === 'length') {
-          addLog(`润色被截断: 达到最大长度限制 (已输出 ${fullContent.length} 字符)`, 'warning')
-        } else if (finishReason === 'stop') {
-          addLog(`润色完成! 文本长度: ${fullContent.length} 字符`, 'success')
-        } else {
-          addLog(`润色结束 (finish_reason=${finishReason ?? '未知'}), 文本长度: ${fullContent.length} 字符`, 'info')
-        }
-      } else {
-        addLog('润色完成但无内容返回', 'warning')
-      }
+      const streamResult = await consumePolishStream(res.body, {
+        onContent: ({ text: nextText }) => setResult({ kind: 'streaming', text: nextText }),
+        onWarning: ({ message, chunk }) => {
+          addLog(`润色响应单块解析失败，已跳过: ${message}; chunk=${chunk}`, 'warning')
+        },
+      })
+      const completionLog = getPolishCompletionLog(streamResult)
+      setResult({ kind: 'success', text: streamResult.text })
+      addLog(completionLog.message, completionLog.type)
     } catch (e) {
       if (controller.signal.aborted) {
         addLog('润色已取消', 'info')
