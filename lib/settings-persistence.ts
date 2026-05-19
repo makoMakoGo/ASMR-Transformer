@@ -13,6 +13,23 @@ export type SettingsPersistenceResult = {
   envFile: SettingsEnvFile
 }
 
+let settingsPersistenceQueue: Promise<void> = Promise.resolve()
+
+const serializeSettingsOperation = async <T>(operation: () => Promise<T>): Promise<T> => {
+  const previousOperation = settingsPersistenceQueue
+  let releaseCurrentOperation!: () => void
+  settingsPersistenceQueue = new Promise<void>((resolve) => {
+    releaseCurrentOperation = resolve
+  })
+
+  await previousOperation
+  try {
+    return await operation()
+  } finally {
+    releaseCurrentOperation()
+  }
+}
+
 export const getSettingsEnvFilePath = ({
   configuredEnvFile = /* turbopackIgnore: true */ process.env.APP_SETTINGS_ENV_FILE || '.env',
   cwd = /* turbopackIgnore: true */ process.cwd(),
@@ -57,21 +74,25 @@ export const buildSettingsResponse = ({
 })
 
 export const loadSettings = async (envFilePath = getSettingsEnvFilePath()): Promise<SettingsPersistenceResult> => {
-  const { exists, env } = await readEnvFile(envFilePath)
-  return buildSettingsResponse({ envFilePath, exists, env })
+  return serializeSettingsOperation(async () => {
+    const { exists, env } = await readEnvFile(envFilePath)
+    return buildSettingsResponse({ envFilePath, exists, env })
+  })
 }
 
 export const saveSettings = async (
   settings: Settings,
   envFilePath = getSettingsEnvFilePath()
 ): Promise<SettingsPersistenceResult> => {
-  const updates = settingsToEnv(settings)
-  await writeEnvFile(envFilePath, updates)
-  for (const [key, value] of Object.entries(updates)) process.env[key] = value
+  return serializeSettingsOperation(async () => {
+    const updates = settingsToEnv(settings)
+    const { env: writtenEnv } = await writeEnvFile(envFilePath, updates)
+    for (const [key, value] of Object.entries(writtenEnv)) process.env[key] = value
 
-  return buildSettingsResponse({
-    envFilePath,
-    exists: true,
-    env: updates,
+    return buildSettingsResponse({
+      envFilePath,
+      exists: true,
+      env: writtenEnv,
+    })
   })
 }
