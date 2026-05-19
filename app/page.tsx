@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ReactElement } from 'react'
 import Image from 'next/image'
 import {
   canPolishTranscription,
@@ -8,18 +8,22 @@ import {
   getTranscriptionDisplayText,
   getTranscriptionText,
 } from '@/lib/transcription-state'
-import { LogsTab } from '@/components/logs-tab'
-import { PolishTab } from '@/components/polish-tab'
-import { SettingsTab } from '@/components/settings-tab'
-import { SourceTab } from '@/components/source-tab'
-import { TranscriptionTab } from '@/components/transcription-tab'
+import { LogsTab } from '@/components/LogsTab'
+import { PolishTab } from '@/components/PolishTab'
+import { SettingsTab } from '@/components/SettingsTab'
+import { SourceTab } from '@/components/SourceTab'
+import { TranscriptionTab } from '@/components/TranscriptionTab'
 import { useActivityLog } from '@/hooks/use-activity-log'
 import { usePolishFlow } from '@/hooks/use-polish-flow'
 import { useSettingsState } from '@/hooks/use-settings-state'
 import { useThemePreference } from '@/hooks/use-theme-preference'
 import { useTranscriptionFlow } from '@/hooks/use-transcription-flow'
 
-function LogoIcon({ className }: { className?: string }) {
+type LogoIconProps = {
+  className?: string
+}
+
+function LogoIcon({ className }: LogoIconProps): ReactElement {
   return (
     <Image
       src="/logo.png"
@@ -41,7 +45,7 @@ const mainTabs = [
 
 export type MainTabId = (typeof mainTabs)[number]['id']
 
-export default function Home() {
+export default function Home(): ReactElement {
   const { theme, toggleTheme } = useThemePreference()
   const activityLog = useActivityLog()
   const settingsState = useSettingsState()
