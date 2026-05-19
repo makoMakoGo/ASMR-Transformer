@@ -4,7 +4,13 @@ import { useEffect, useRef, useState, type ChangeEvent } from 'react'
 import { DEFAULT_FETCH_AUDIO_MAX_BYTES } from '@/lib/runtime-config'
 import { formatFileSize } from '@/lib/file-size'
 import { readJsonResponse, readResponseErrorMessage } from '@/lib/http-response'
-import { normalizeSettingsForStorage, type Settings } from '@/lib/app-settings'
+import type { Settings } from '@/lib/app-settings'
+import {
+  formatAsrApiErrorMessage,
+  hasAsrApiKey,
+  normalizeAsrRunSettings,
+  runAsrTranscription,
+} from '@/lib/asr-transcription'
 import {
   getTranscriptionDisplayText,
   IDLE_TRANSCRIPTION_RESULT,
@@ -120,8 +126,8 @@ export const useTranscriptionFlow = ({
   }
 
   const transcribe = async (file: File, skipClearLogs = false) => {
-    const effectiveSettings = normalizeSettingsForStorage(settings)
-    if (!effectiveSettings.apiKey) {
+    const effectiveSettings = normalizeAsrRunSettings(settings)
+    if (!hasAsrApiKey(settings)) {
       setFlowError('请先填写 API Key', '转录失败')
       addLog('错误: 未填写 API Key', 'error')
       return
@@ -133,88 +139,40 @@ export const useTranscriptionFlow = ({
     addLog(`目标 API: ${effectiveSettings.apiUrl}`, 'info')
     addLog(`使用模型: ${effectiveSettings.model}`, 'info')
 
-    const formData = new FormData()
-    formData.append('file', file)
-    formData.append('model', effectiveSettings.model)
-
     try {
       addLog('正在上传文件...', 'info')
       setStatusMessage('正在上传文件...')
 
-      const xhr = new XMLHttpRequest()
-      const response = await new Promise<{ ok: boolean; status: number; data: Record<string, unknown> }>((resolve, reject) => {
-        let waitTimer: ReturnType<typeof setInterval> | null = null
-        const stopWaitTimer = () => {
-          if (waitTimer !== null) {
-            clearInterval(waitTimer)
-            waitTimer = null
-          }
-        }
-
-        xhr.upload.onprogress = (event) => {
-          if (!event.lengthComputable) return
-
-          const percent = Math.round((event.loaded / event.total) * 100)
-          setUploadProgress(percent)
-          setStatusMessage(`正在上传 ${formatFileSize(event.loaded)} / ${formatFileSize(event.total)}`)
-          if (percent % 25 === 0 || percent === 100) {
-            addLog(`上传进度: ${percent}%`, 'info')
-          }
-        }
-
-        xhr.upload.onload = () => {
+      const response = await runAsrTranscription(file, effectiveSettings, {
+        onUploadProgress: (progress) => {
+          setUploadProgress(progress.percent)
+          setStatusMessage(`正在上传 ${formatFileSize(progress.loaded)} / ${formatFileSize(progress.total)}`)
+          if (progress.shouldLog) addLog(`上传进度: ${progress.percent}%`, 'info')
+        },
+        onUploadComplete: () => {
           setStatus('transcribing')
           setStatusMessage('正在识别语音... 已等待 0s')
           addLog('上传完成，正在识别语音...', 'success')
-          const startedAt = Date.now()
-          let lastHeartbeat = 0
-          waitTimer = setInterval(() => {
-            const elapsed = Math.floor((Date.now() - startedAt) / 1000)
-            setStatusMessage(`正在识别语音... 已等待 ${elapsed}s`)
-            if (elapsed > 0 && elapsed % 10 === 0 && elapsed !== lastHeartbeat) {
-              lastHeartbeat = elapsed
-              addLog(`仍在识别中... 已等待 ${elapsed}s`, 'info')
-            }
-          }, 1000)
-        }
-
-        xhr.onload = () => {
-          stopWaitTimer()
-          try {
-            const data = JSON.parse(xhr.responseText) as Record<string, unknown>
-            resolve({ ok: xhr.status >= 200 && xhr.status < 300, status: xhr.status, data })
-          } catch {
-            reject(new Error('响应解析失败'))
+        },
+        onWaitHeartbeat: (heartbeat) => {
+          setStatusMessage(`正在识别语音... 已等待 ${heartbeat.elapsedSeconds}s`)
+          if (heartbeat.shouldLog) {
+            addLog(`仍在识别中... 已等待 ${heartbeat.elapsedSeconds}s`, 'info')
           }
-        }
-
-        xhr.onerror = () => {
-          stopWaitTimer()
-          reject(new Error('网络错误'))
-        }
-        xhr.ontimeout = () => {
-          stopWaitTimer()
-          reject(new Error('请求超时'))
-        }
-
-        xhr.open('POST', effectiveSettings.apiUrl)
-        xhr.setRequestHeader('Authorization', `Bearer ${effectiveSettings.apiKey}`)
-        xhr.timeout = 300000
-        xhr.send(formData)
+        },
       })
 
       setStatus('transcribing')
       setStatusMessage('正在识别语音...')
 
       if (!response.ok) {
-        const errorMessage = `错误: ${response.status} - ${JSON.stringify(response.data)}`
+        const errorMessage = formatAsrApiErrorMessage(response)
         setFlowError(errorMessage, '转录失败')
         addLog(`API 错误: ${JSON.stringify(response.data)}`, 'error')
         return
       }
 
-      const text = typeof response.data.text === 'string' ? response.data.text : ''
-      finishTranscription(text)
+      finishTranscription(response.text)
     } catch (e) {
       const errorMsg = e instanceof Error ? e.message : String(e)
       setFlowError(`请求失败: ${errorMsg}`, '请求失败')
@@ -242,8 +200,7 @@ export const useTranscriptionFlow = ({
       return
     }
 
-    const effectiveSettings = normalizeSettingsForStorage(settings)
-    if (!effectiveSettings.apiKey) {
+    if (!hasAsrApiKey(settings)) {
       setFlowError('请先填写 API Key', '导入失败')
       addLog('错误: 未填写 API Key', 'error')
       return
