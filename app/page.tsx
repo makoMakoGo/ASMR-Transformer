@@ -157,20 +157,7 @@ export default function Home() {
             )}
 
             {currentTab === 'settings' && (
-              <SettingsTab
-                settings={settingsState.settings}
-                settingsLoaded={settingsState.settingsLoaded}
-                envFilePath={settingsState.envFilePath}
-                envFileExists={settingsState.envFileExists}
-                savingSettings={settingsState.savingSettings}
-                envSaveError={settingsState.envSaveError}
-                settingsLoadError={settingsState.settingsLoadError}
-                isDirty={settingsState.isDirty}
-                updateSetting={settingsState.updateSetting}
-                reloadSettingsFromEnv={settingsState.reloadSettingsFromEnv}
-                saveSettingsToEnv={settingsState.saveSettingsToEnv}
-                discardLocalChanges={settingsState.discardLocalChanges}
-              />
+              <SettingsTab {...settingsState} />
             )}
 
             {currentTab === 'logs' && (
