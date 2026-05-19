@@ -7,7 +7,6 @@ import { readJsonResponse, readResponseErrorMessage } from '@/lib/http-response'
 import type { Settings } from '@/lib/app-settings'
 import {
   formatAsrApiErrorMessage,
-  hasAsrApiKey,
   normalizeAsrRunSettings,
   runAsrTranscription,
 } from '@/lib/asr-transcription'
@@ -130,7 +129,7 @@ export const useTranscriptionFlow = ({
 
   const transcribe = async (file: File, skipClearLogs = false) => {
     const effectiveSettings = normalizeAsrRunSettings(settings)
-    if (!hasAsrApiKey(settings)) {
+    if (!effectiveSettings.apiKey) {
       setFlowError('请先填写 API Key', '转录失败')
       addLog('错误: 未填写 API Key', 'error')
       return
@@ -145,6 +144,7 @@ export const useTranscriptionFlow = ({
     transcribeAbortRef.current?.abort()
     const controller = new AbortController()
     transcribeAbortRef.current = controller
+    let lastHeartbeat = 0
 
     try {
       addLog('正在上传文件...', 'info')
@@ -154,7 +154,9 @@ export const useTranscriptionFlow = ({
         onUploadProgress: (progress) => {
           setUploadProgress(progress.percent)
           setStatusMessage(`正在上传 ${formatFileSize(progress.loaded)} / ${formatFileSize(progress.total)}`)
-          if (progress.shouldLog) addLog(`上传进度: ${progress.percent}%`, 'info')
+          if (progress.percent % 25 === 0 || progress.percent === 100) {
+            addLog(`上传进度: ${progress.percent}%`, 'info')
+          }
         },
         onUploadComplete: () => {
           setStatus('transcribing')
@@ -163,7 +165,12 @@ export const useTranscriptionFlow = ({
         },
         onWaitHeartbeat: (heartbeat) => {
           setStatusMessage(`正在识别语音... 已等待 ${heartbeat.elapsedSeconds}s`)
-          if (heartbeat.shouldLog) {
+          const shouldLog =
+            heartbeat.elapsedSeconds > 0 &&
+            heartbeat.elapsedSeconds % 10 === 0 &&
+            heartbeat.elapsedSeconds !== lastHeartbeat
+          if (shouldLog) {
+            lastHeartbeat = heartbeat.elapsedSeconds
             addLog(`仍在识别中... 已等待 ${heartbeat.elapsedSeconds}s`, 'info')
           }
         },
@@ -213,7 +220,7 @@ export const useTranscriptionFlow = ({
       return
     }
 
-    if (!hasAsrApiKey(settings)) {
+    if (!normalizeAsrRunSettings(settings).apiKey) {
       setFlowError('请先填写 API Key', '导入失败')
       addLog('错误: 未填写 API Key', 'error')
       return
