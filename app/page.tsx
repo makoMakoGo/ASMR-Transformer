@@ -153,7 +153,7 @@ export default function Home(): ReactElement {
             {currentTab === 'polish' && (
               <PolishTab
                 polishFlow={polishFlow}
-                transcribedText={transcriptionRawText}
+                transcriptionRawText={transcriptionRawText}
                 polishedText={polishedText}
                 polishedDisplayText={polishedDisplayText}
                 canPolish={canPolish}

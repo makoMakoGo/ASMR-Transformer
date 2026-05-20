@@ -1,11 +1,14 @@
 import type { ReactElement } from 'react'
 import type { usePolishFlow } from '@/hooks/use-polish-flow'
 
-type PolishFlow = ReturnType<typeof usePolishFlow>
+type PolishTabPolishFlow = Pick<
+  ReturnType<typeof usePolishFlow>,
+  'polishText' | 'polishing' | 'copyPolished' | 'hasPolishText' | 'copied' | 'result'
+>
 
 type PolishTabProps = {
-  polishFlow: PolishFlow
-  transcribedText: string
+  polishFlow: PolishTabPolishFlow
+  transcriptionRawText: string
   polishedText: string
   polishedDisplayText: string
   canPolish: boolean
@@ -13,7 +16,7 @@ type PolishTabProps = {
 
 export function PolishTab({
   polishFlow,
-  transcribedText,
+  transcriptionRawText,
   polishedText,
   polishedDisplayText,
   canPolish,
@@ -22,7 +25,7 @@ export function PolishTab({
     <div role="tabpanel" id="tabpanel-polish" aria-labelledby="tab-polish" className="space-y-4 animate-fade-in">
       <div className="flex items-center gap-2">
         <button
-          onClick={() => void polishFlow.polishText(transcribedText)}
+          onClick={() => void polishFlow.polishText(transcriptionRawText)}
           disabled={!canPolish}
           className="px-4 py-2 min-h-[40px] bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg text-sm font-medium cursor-pointer transition-colors"
         >
