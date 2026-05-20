@@ -11,6 +11,8 @@ export type LogEntry = {
 
 export type AddLog = (message: string, type?: LogEntry['type']) => void
 
+const MAX_LOG_ENTRIES = 200
+
 export const useActivityLog = () => {
   const [logs, setLogs] = useState<LogEntry[]>([])
   const [logFilter, setLogFilter] = useState<'all' | 'error' | 'success' | 'info'>('all')
@@ -21,7 +23,7 @@ export const useActivityLog = () => {
     const time = new Date().toLocaleTimeString('zh-CN', { hour12: false })
     const id = nextLogId.current
     nextLogId.current += 1
-    setLogs((prev) => [...prev, { id, time, message, type }])
+    setLogs((prev) => [...prev, { id, time, message, type }].slice(-MAX_LOG_ENTRIES))
 
     // The delayed scroll keeps the log view aligned with React's async paint.
     setTimeout(() => {

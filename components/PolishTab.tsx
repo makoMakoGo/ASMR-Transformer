@@ -1,5 +1,6 @@
 import type { ReactElement } from 'react'
 import type { usePolishFlow } from '@/hooks/use-polish-flow'
+import { PolishActionButton } from '@/components/PolishActionButton'
 
 type PolishTabPolishFlow = Pick<
   ReturnType<typeof usePolishFlow>,
@@ -24,13 +25,12 @@ export function PolishTab({
   return (
     <div role="tabpanel" id="tabpanel-polish" aria-labelledby="tab-polish" className="space-y-4 animate-fade-in">
       <div className="flex items-center gap-2">
-        <button
-          onClick={() => void polishFlow.polishText(transcriptionRawText)}
+        <PolishActionButton
+          label="重新润色"
+          polishing={polishFlow.polishing}
           disabled={!canPolish}
-          className="px-4 py-2 min-h-[40px] bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg text-sm font-medium cursor-pointer transition-colors"
-        >
-          {polishFlow.polishing ? '润色中...' : '重新润色'}
-        </button>
+          onClick={() => void polishFlow.polishText(transcriptionRawText)}
+        />
         <button
           onClick={() => void polishFlow.copyPolished()}
           disabled={!polishFlow.hasPolishText}
