@@ -3,6 +3,11 @@ import type { useActivityLog } from '@/hooks/use-activity-log'
 
 type ActivityLog = ReturnType<typeof useActivityLog>
 
+type LogsTabProps = Pick<
+  ActivityLog,
+  'logFilter' | 'filteredLogs' | 'logsContainerRef' | 'setLogFilter' | 'clearLogs'
+>
+
 const logColors = {
   info: 'text-muted-foreground',
   success: 'text-emerald-600 dark:text-emerald-400',
@@ -16,7 +21,7 @@ export function LogsTab({
   logsContainerRef,
   setLogFilter,
   clearLogs,
-}: Pick<ActivityLog, 'logFilter' | 'filteredLogs' | 'logsContainerRef' | 'setLogFilter' | 'clearLogs'>): ReactElement {
+}: LogsTabProps): ReactElement {
   return (
     <div role="tabpanel" id="tabpanel-logs" aria-labelledby="tab-logs" className="space-y-4 animate-fade-in">
       <div className="flex items-center gap-2" role="group" aria-label="日志筛选">

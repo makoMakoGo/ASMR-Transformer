@@ -1,4 +1,4 @@
-import type { ReactElement } from 'react'
+import { useState, type DragEvent, type ReactElement } from 'react'
 import { formatFileSize } from '@/lib/file-size'
 import { PROCESSING_STATUS_CONFIG } from '@/lib/transcription-state'
 import type { useTranscriptionFlow } from '@/hooks/use-transcription-flow'
@@ -7,6 +7,7 @@ type SourceTabTranscriptionFlow = Pick<
   ReturnType<typeof useTranscriptionFlow>,
   | 'fileInputRef'
   | 'handleFileChange'
+  | 'handleFileSelect'
   | 'audioUrlInput'
   | 'setAudioUrlInput'
   | 'checkAudioUrl'
@@ -33,6 +34,27 @@ export function SourceTab({
   canTranscribe,
   showIndeterminateProgress,
 }: SourceTabProps): ReactElement {
+  const [isDragging, setIsDragging] = useState(false)
+
+  const handleDragOver = (event: DragEvent<HTMLDivElement>): void => {
+    event.preventDefault()
+    setIsDragging(true)
+  }
+
+  const handleDragLeave = (event: DragEvent<HTMLDivElement>): void => {
+    event.preventDefault()
+    setIsDragging(false)
+  }
+
+  const handleDrop = (event: DragEvent<HTMLDivElement>): void => {
+    event.preventDefault()
+    setIsDragging(false)
+    const file = event.dataTransfer.files?.[0]
+    if (!file) return
+
+    transcriptionFlow.handleFileSelect(file)
+  }
+
   return (
     <div role="tabpanel" id="tabpanel-source" aria-labelledby="tab-source" className="space-y-5 animate-fade-in">
       <div className="space-y-2">
@@ -45,16 +67,23 @@ export function SourceTab({
               transcriptionFlow.fileInputRef.current?.click()
             }
           }}
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
           role="button"
           tabIndex={0}
-          className="border-2 border-dashed border-border rounded-lg p-6 text-center hover:border-primary/50 hover:bg-muted/30 transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary"
+          className={`border-2 border-dashed rounded-lg p-6 text-center transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary ${
+            isDragging
+              ? 'border-primary bg-primary/10 scale-[1.01]'
+              : 'border-border hover:border-primary/50 hover:bg-muted/30'
+          }`}
           aria-label="选择音频文件"
         >
           <div className="flex flex-col items-center gap-2">
             <svg className="w-8 h-8 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
             </svg>
-            <p className="text-sm text-foreground">点击选择音频文件</p>
+            <p className="text-sm text-foreground">点击选择或拖拽音频文件</p>
             <p className="text-xs text-muted-foreground">支持 mp3, wav, m4a, flac...</p>
           </div>
         </div>
