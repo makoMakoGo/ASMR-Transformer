@@ -43,6 +43,9 @@ export function SourceTab({
 
   const handleDragLeave = (event: DragEvent<HTMLDivElement>): void => {
     event.preventDefault()
+    const nextTarget = event.relatedTarget
+    if (nextTarget instanceof Node && event.currentTarget.contains(nextTarget)) return
+
     setIsDragging(false)
   }
 
