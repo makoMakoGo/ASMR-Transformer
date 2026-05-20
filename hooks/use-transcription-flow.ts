@@ -326,10 +326,7 @@ export const useTranscriptionFlow = ({
     }
   }
 
-  const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0]
-    if (!file) return
-
+  const handleFileSelect = (file: File) => {
     setSelectedFile(file)
     setAudioUrlInput('')
     setAudioInfo({
@@ -339,6 +336,13 @@ export const useTranscriptionFlow = ({
       source: 'local',
     })
     addLog(`已选择文件: ${file.name} (${formatFileSize(file.size)})`, 'info')
+  }
+
+  const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+
+    handleFileSelect(file)
   }
 
   const checkAudioUrl = async () => {
@@ -443,6 +447,7 @@ export const useTranscriptionFlow = ({
     copied,
     fileInputRef,
     setAudioUrlInput,
+    handleFileSelect,
     handleFileChange,
     checkAudioUrl,
     clearAudio,
