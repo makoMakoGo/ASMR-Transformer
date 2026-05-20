@@ -15,6 +15,13 @@ const logColors = {
   warning: 'text-amber-600 dark:text-amber-400',
 }
 
+const filterLabels = {
+  all: '全部',
+  error: '错误',
+  success: '成功',
+  info: '信息',
+}
+
 export function LogsTab({
   logFilter,
   filteredLogs,
@@ -36,7 +43,7 @@ export function LogsTab({
                 : 'bg-muted text-muted-foreground hover:bg-muted/80'
             }`}
           >
-            {filter === 'all' ? '全部' : filter === 'error' ? '错误' : filter === 'success' ? '成功' : '信息'}
+            {filterLabels[filter]}
           </button>
         ))}
         <div className="flex-1" />

@@ -18,6 +18,46 @@ type SettingsTabProps = Pick<
   | 'discardLocalChanges'
 >
 
+const inputClassName =
+  'w-full px-3 py-2 bg-transparent rounded-lg border border-border text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary/50 focus:border-primary transition-colors'
+
+const inputWithPlaceholderClassName = `${inputClassName} placeholder-muted-foreground`
+const textareaClassName = `${inputWithPlaceholderClassName} resize-none`
+
+const savedStatus = {
+  text: '已保存',
+  className: 'text-emerald-600 dark:text-emerald-400',
+}
+
+function getSaveStatus({
+  savingSettings,
+  envSaveError,
+  isDirty,
+}: Pick<SettingsTabProps, 'savingSettings' | 'envSaveError' | 'isDirty'>): typeof savedStatus {
+  if (savingSettings) {
+    return {
+      text: '保存中...',
+      className: 'text-amber-600 dark:text-amber-400',
+    }
+  }
+
+  if (envSaveError) {
+    return {
+      text: '保存失败',
+      className: 'text-destructive',
+    }
+  }
+
+  if (isDirty) {
+    return {
+      text: '未保存',
+      className: 'text-amber-600 dark:text-amber-400',
+    }
+  }
+
+  return savedStatus
+}
+
 export function SettingsTab({
   settings,
   settingsLoaded,
@@ -32,22 +72,14 @@ export function SettingsTab({
   saveSettingsToEnv,
   discardLocalChanges,
 }: SettingsTabProps): ReactElement {
+  const saveStatus = getSaveStatus({ savingSettings, envSaveError, isDirty })
+
   return (
     <div role="tabpanel" id="tabpanel-settings" aria-labelledby="tab-settings" className="space-y-5 animate-fade-in">
       <div className="space-y-2">
         <div className="flex items-center gap-2">
-          <div
-            className={`text-xs font-medium ${
-              savingSettings
-                ? 'text-amber-600 dark:text-amber-400'
-                : envSaveError
-                  ? 'text-destructive'
-                  : isDirty
-                    ? 'text-amber-600 dark:text-amber-400'
-                    : 'text-emerald-600 dark:text-emerald-400'
-            }`}
-          >
-            {savingSettings ? '保存中...' : envSaveError ? '保存失败' : isDirty ? '未保存' : '已保存'}
+          <div className={`text-xs font-medium ${saveStatus.className}`}>
+            {saveStatus.text}
           </div>
           <div className="flex-1" />
           <button
@@ -103,7 +135,7 @@ export function SettingsTab({
                 type="text"
                 value={settings.apiUrl}
                 onChange={(e) => updateSetting('apiUrl', e.target.value)}
-                className="w-full px-3 py-2 bg-transparent rounded-lg border border-border text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary/50 focus:border-primary transition-colors"
+                className={inputClassName}
               />
             </div>
             <div className="flex-[4]">
@@ -113,7 +145,7 @@ export function SettingsTab({
                 type="text"
                 value={settings.model}
                 onChange={(e) => updateSetting('model', e.target.value)}
-                className="w-full px-3 py-2 bg-transparent rounded-lg border border-border text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary/50 focus:border-primary transition-colors"
+                className={inputClassName}
               />
             </div>
           </div>
@@ -127,7 +159,7 @@ export function SettingsTab({
                 placeholder="硅基流动 API Key（必填）"
                 value={settings.apiKey}
                 onChange={(e) => updateSetting('apiKey', e.target.value)}
-                className="w-full px-3 py-2 bg-transparent rounded-lg border border-border text-xs text-foreground placeholder-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50 focus:border-primary transition-colors"
+                className={inputWithPlaceholderClassName}
               />
             </div>
             <div className="flex-[4]" />
@@ -149,7 +181,7 @@ export function SettingsTab({
                 type="text"
                 value={settings.llmApiUrl}
                 onChange={(e) => updateSetting('llmApiUrl', e.target.value)}
-                className="w-full px-3 py-2 bg-transparent rounded-lg border border-border text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary/50 focus:border-primary transition-colors"
+                className={inputClassName}
               />
             </div>
             <div className="flex-[4]">
@@ -159,7 +191,7 @@ export function SettingsTab({
                 type="text"
                 value={settings.llmModel}
                 onChange={(e) => updateSetting('llmModel', e.target.value)}
-                className="w-full px-3 py-2 bg-transparent rounded-lg border border-border text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary/50 focus:border-primary transition-colors"
+                className={inputClassName}
               />
             </div>
           </div>
@@ -173,7 +205,7 @@ export function SettingsTab({
                 placeholder="LLM API Key"
                 value={settings.llmApiKey}
                 onChange={(e) => updateSetting('llmApiKey', e.target.value)}
-                className="w-full px-3 py-2 bg-transparent rounded-lg border border-border text-xs text-foreground placeholder-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50 focus:border-primary transition-colors"
+                className={inputWithPlaceholderClassName}
               />
             </div>
             <div className="flex-[4]" />
@@ -196,7 +228,7 @@ export function SettingsTab({
               value={settings.customInstructions}
               onChange={(e) => updateSetting('customInstructions', e.target.value)}
               rows={3}
-              className="w-full px-3 py-2 bg-transparent rounded-lg border border-border text-xs text-foreground placeholder-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50 focus:border-primary transition-colors resize-none"
+              className={textareaClassName}
             />
           </div>
         </div>

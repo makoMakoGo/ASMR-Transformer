@@ -1,6 +1,7 @@
 import type { ReactElement } from 'react'
 import type { usePolishFlow } from '@/hooks/use-polish-flow'
 import type { useTranscriptionFlow } from '@/hooks/use-transcription-flow'
+import { PolishActionButton } from '@/components/PolishActionButton'
 
 type TranscriptionTabPolishFlow = Pick<ReturnType<typeof usePolishFlow>, 'polishText' | 'polishing'>
 type TranscriptionTabTranscriptionFlow = Pick<
@@ -26,13 +27,12 @@ export function TranscriptionTab({
   return (
     <div role="tabpanel" id="tabpanel-transcription" aria-labelledby="tab-transcription" className="space-y-4 animate-fade-in">
       <div className="flex items-center gap-2">
-        <button
-          onClick={() => void polishFlow.polishText(transcriptionRawText)}
+        <PolishActionButton
+          label="开始润色"
+          polishing={polishFlow.polishing}
           disabled={!canPolish}
-          className="px-4 py-2 min-h-[40px] bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg text-sm font-medium cursor-pointer transition-colors"
-        >
-          {polishFlow.polishing ? '润色中...' : '开始润色'}
-        </button>
+          onClick={() => void polishFlow.polishText(transcriptionRawText)}
+        />
         <button
           onClick={() => void transcriptionFlow.copyTranscription()}
           disabled={!transcriptionDisplayText}
