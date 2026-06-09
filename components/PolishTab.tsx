@@ -1,11 +1,15 @@
 import type { ReactElement } from 'react'
-import type { usePolishFlow } from '@/hooks/use-polish-flow'
 import { PolishActionButton } from '@/components/PolishActionButton'
+import type { PolishResult } from '@/lib/transcription-state'
 
-type PolishTabPolishFlow = Pick<
-  ReturnType<typeof usePolishFlow>,
-  'polishText' | 'polishing' | 'copyPolished' | 'hasPolishText' | 'copied' | 'result'
->
+type PolishTabPolishFlow = {
+  polishText: (text: string) => Promise<void>
+  polishing: boolean
+  copyPolished: () => Promise<void>
+  hasPolishText: boolean
+  copied: boolean
+  result: PolishResult
+}
 
 type PolishTabProps = {
   polishFlow: PolishTabPolishFlow
