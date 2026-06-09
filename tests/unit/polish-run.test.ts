@@ -135,6 +135,17 @@ describe('runPolishText', () => {
       .toThrow(new PolishRunError('provider error'))
   })
 
+  it('reports the HTTP status for non-JSON error responses', async () => {
+    const fetchFn: typeof fetch = async () => new Response('<html>bad gateway</html>', {
+      status: 502,
+      headers: { 'Content-Type': 'text/html' },
+    })
+
+    await expect(runPolishText('text', DEFAULT_SETTINGS, {}, { fetchFn }))
+      .rejects
+      .toThrow(new PolishRunError('HTTP 502'))
+  })
+
   it('rejects successful responses without a stream body', async () => {
     const fetchFn: typeof fetch = async () => new Response(null, {
       status: 200,
