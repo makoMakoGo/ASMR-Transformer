@@ -1,6 +1,6 @@
 # ASMR Transformer Context
 
-本文档记录 ASMR Transformer 的域语言。后续 issue、PR、架构评审和重构应优先使用这里的词，避免同一个概念在代码和讨论中反复改名。
+本文档记录 ASMR Transformer 的领域语言。后续 issue、PR、架构评审和重构应优先使用这里的词，避免同一个概念在代码和讨论中反复改名。
 
 ## Core Domain
 
@@ -57,4 +57,4 @@
 
 当前仓库没有已记录的 ADR。未来影响架构方向的决策应写入 `docs/adr/`。
 
-架构评审中应使用上述域词命名 deep Module。例如说“转录运行 Module”，不要只说某个 hook 文件名；说“远程音频来源策略”，不要把 AList 域名规则和真实下载域名规则当成两个无关概念。
+架构评审中应使用上述领域词汇命名 deep Module。这里的 deep Module 是架构评审术语，不是 Domain Module 的缩写。例如说“转录运行 Module”，不要只说某个 hook 文件名；说“远程音频来源策略”，不要把 AList 域名规则和真实下载域名规则当成两个无关概念。
