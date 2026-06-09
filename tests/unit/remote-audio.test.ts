@@ -140,6 +140,58 @@ describe('checkRemoteAudio', () => {
     })
   })
 
+  it('checks AList page urls by resolving internally before reading metadata', async () => {
+    const resolvedUrl = 'https://asmr.121231234.xyz/file/test.mp3'
+    const calls: Array<{ url: string; method?: string }> = []
+    const fetchFn = async (url: string, init?: RequestInit) => {
+      calls.push({ url, method: init?.method })
+
+      if (url === 'https://www.asmrgay.com/api/fs/get') {
+        return new Response(
+          JSON.stringify({
+            code: 200,
+            data: {
+              raw_url: resolvedUrl,
+              size: 321,
+              type: 'audio/mpeg',
+            },
+          }),
+          {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' },
+          }
+        )
+      }
+
+      if (url === resolvedUrl) {
+        return new Response(null, {
+          status: 200,
+          headers: {
+            'content-length': '456',
+            'content-type': 'audio/mpeg',
+          },
+        })
+      }
+
+      throw new Error(`unexpected fetch: ${url}`)
+    }
+
+    const result = await checkRemoteAudio('https://www.asmrgay.com/asmr/123', { fetchFn })
+
+    expect(calls).toEqual([
+      { url: 'https://www.asmrgay.com/api/fs/get', method: 'POST' },
+      { url: resolvedUrl, method: 'HEAD' },
+    ])
+    expect(result.source.inputUrl).toBe('https://www.asmrgay.com/asmr/123')
+    expect(result.source.resolvedUrl).toBe(resolvedUrl)
+    expect(result.metadata).toEqual({
+      fileName: '123',
+      fileSize: 456,
+      contentType: 'audio/mpeg',
+      contentLength: '456',
+    })
+  })
+
   it('normalizes failed source HEAD checks', async () => {
     const fetchFn = async () => new Response(null, { status: 404, statusText: 'Not Found' })
 
@@ -243,6 +295,65 @@ describe('proxyRemoteAudio', () => {
 
     const proxied = await new Response(result.body).arrayBuffer()
     expect([...new Uint8Array(proxied)]).toEqual([1, 2, 3])
+  })
+
+  it('proxies AList page urls by resolving the audio url internally', async () => {
+    const resolvedUrl = 'https://asmr.121231234.xyz/file/test.mp3'
+    const calls: Array<{ url: string; method?: string }> = []
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new Uint8Array([4, 5, 6]))
+        controller.close()
+      },
+    })
+    const fetchFn = async (url: string, init?: RequestInit) => {
+      calls.push({ url, method: init?.method })
+
+      if (url === 'https://www.asmrgay.com/api/fs/get') {
+        return new Response(
+          JSON.stringify({
+            code: 200,
+            data: {
+              raw_url: resolvedUrl,
+              size: 3,
+              type: 'audio/mpeg',
+            },
+          }),
+          {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' },
+          }
+        )
+      }
+
+      if (url === resolvedUrl) {
+        expect((init?.headers as Record<string, string>).Referer).toBe('https://asmr.121231234.xyz')
+        return new Response(body, {
+          status: 200,
+          headers: {
+            'content-length': '3',
+            'content-type': 'audio/mpeg',
+          },
+        })
+      }
+
+      throw new Error(`unexpected fetch: ${url}`)
+    }
+
+    const result = await proxyRemoteAudio('https://www.asmrgay.com/asmr/123', {
+      fetchFn,
+      maxAudioBytes: 10,
+    })
+
+    expect(calls).toEqual([
+      { url: 'https://www.asmrgay.com/api/fs/get', method: 'POST' },
+      { url: resolvedUrl, method: 'GET' },
+    ])
+    expect(result.source.inputUrl).toBe('https://www.asmrgay.com/asmr/123')
+    expect(result.source.resolvedUrl).toBe(resolvedUrl)
+
+    const proxied = await new Response(result.body).arrayBuffer()
+    expect([...new Uint8Array(proxied)]).toEqual([4, 5, 6])
   })
 
   it('rejects hinted files that exceed the configured size limit', async () => {
