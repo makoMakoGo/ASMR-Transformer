@@ -6,11 +6,8 @@ import { formatFileSize } from '@/lib/file-size'
 import { readJsonResponse, readResponseErrorMessage } from '@/lib/http-response'
 import type { Settings } from '@/lib/app-settings'
 import { fetchRemoteAudioForAsr, type RemoteAudioFetchEvent } from '@/lib/browser-remote-audio'
-import {
-  formatAsrApiErrorMessage,
-  normalizeAsrRunSettings,
-  runAsrTranscription,
-} from '@/lib/asr-transcription'
+import { hasAsrApiKey } from '@/lib/asr-transcription'
+import { runLocalTranscription, type LocalTranscriptionRunStatePatch } from '@/lib/local-transcription-run'
 import {
   getTranscriptionDisplayText,
   IDLE_TRANSCRIPTION_RESULT,
@@ -91,11 +88,15 @@ export const useTranscriptionFlow = ({
     })()
   }, [addLog])
 
-  const beginRun = (nextStatusMessage: string, skipClearLogs = false) => {
+  const prepareRun = (skipClearLogs = false) => {
     if (!skipClearLogs) clearLogs()
     onRunStarted?.()
     setLoading(true)
     setCopied(false)
+  }
+
+  const beginRun = (nextStatusMessage: string, skipClearLogs = false) => {
+    prepareRun(skipClearLogs)
     setTranscriptionResult(IDLE_TRANSCRIPTION_RESULT)
     setUploadProgress(0)
     setStatus('processing')
@@ -108,24 +109,15 @@ export const useTranscriptionFlow = ({
     setStatusMessage(nextStatusMessage)
   }
 
-  const finishTranscription = (text: string) => {
-    if (text.trim()) {
-      setTranscriptionResult({ kind: 'success', text })
-      setStatus('done')
-      setStatusMessage('转录完成')
-      addLog(`转录成功! 文本长度: ${text.length} 字符`, 'success')
-      return
-    }
-
-    setTranscriptionResult({ kind: 'empty' })
-    setStatus('done')
-    setStatusMessage('转录完成（无文本）')
-    addLog('转录完成，但服务未返回文本', 'warning')
+  const applyTranscriptionRunState = (patch: LocalTranscriptionRunStatePatch) => {
+    if (patch.result) setTranscriptionResult(patch.result)
+    if (typeof patch.uploadProgress === 'number') setUploadProgress(patch.uploadProgress)
+    if (patch.status) setStatus(patch.status)
+    if (typeof patch.statusMessage === 'string') setStatusMessage(patch.statusMessage)
   }
 
   const transcribe = async (file: File, skipClearLogs = false) => {
-    const effectiveSettings = normalizeAsrRunSettings(settings)
-    if (!effectiveSettings.apiKey) {
+    if (!hasAsrApiKey(settings)) {
       setFlowError('请先填写 API Key', '转录失败')
       addLog('错误: 未填写 API Key', 'error')
       return
@@ -136,75 +128,25 @@ export const useTranscriptionFlow = ({
     const controller = new AbortController()
     transcribeAbortRef.current = controller
     const isCurrentRun = () => transcribeAbortRef.current === controller
-    let lastHeartbeat = 0
 
-    beginRun('正在上传到识别服务...', skipClearLogs)
+    prepareRun(skipClearLogs)
     if (previousController) addLog('已取消上一次转录请求', 'info')
-    addLog(`开始处理文件: ${file.name}`, 'info')
-    addLog(`文件大小: ${formatFileSize(file.size)}`, 'info')
-    addLog(`目标 API: ${effectiveSettings.apiUrl}`, 'info')
-    addLog(`使用模型: ${effectiveSettings.model}`, 'info')
 
     try {
-      addLog('正在上传文件...', 'info')
-      setStatusMessage('正在上传文件...')
-
-      const response = await runAsrTranscription(file, effectiveSettings, {
-        onUploadProgress: (progress) => {
+      await runLocalTranscription(file, settings, {
+        onState: (patch) => {
           if (!isCurrentRun()) return
-          setUploadProgress(progress.percent)
-          setStatusMessage(`正在上传 ${formatFileSize(progress.loaded)} / ${formatFileSize(progress.total)}`)
-          if (progress.percent % 25 === 0 || progress.percent === 100) {
-            addLog(`上传进度: ${progress.percent}%`, 'info')
-          }
+          applyTranscriptionRunState(patch)
         },
-        onUploadComplete: () => {
+        onLog: ({ message, type }) => {
           if (!isCurrentRun()) return
-          setStatus('transcribing')
-          setStatusMessage('正在识别语音... 已等待 0s')
-          addLog('上传完成，正在识别语音...', 'success')
-        },
-        onWaitHeartbeat: (heartbeat) => {
-          if (!isCurrentRun()) return
-          setStatusMessage(`正在识别语音... 已等待 ${heartbeat.elapsedSeconds}s`)
-          const shouldLog =
-            heartbeat.elapsedSeconds > 0 &&
-            heartbeat.elapsedSeconds % 10 === 0 &&
-            heartbeat.elapsedSeconds !== lastHeartbeat
-          if (shouldLog) {
-            lastHeartbeat = heartbeat.elapsedSeconds
-            addLog(`仍在识别中... 已等待 ${heartbeat.elapsedSeconds}s`, 'info')
-          }
+          addLog(message, type)
         },
       }, { signal: controller.signal })
-
-      if (!isCurrentRun()) return
-
-      if (!response.ok) {
-        const errorMessage = formatAsrApiErrorMessage(response)
-        setFlowError(errorMessage, '转录失败')
-        addLog(`API 错误: ${JSON.stringify(response.data)}`, 'error')
-        return
-      }
-
-      finishTranscription(response.text)
-    } catch (e) {
-      if (!isCurrentRun()) return
-
-      if (e instanceof DOMException && e.name === 'AbortError') {
-        addLog('转录已取消', 'info')
-        setStatus('idle')
-        setStatusMessage('')
-        return
-      }
-      const errorMsg = e instanceof Error ? e.message : String(e)
-      setFlowError(`请求失败: ${errorMsg}`, '请求失败')
-      addLog(`请求失败: ${errorMsg}`, 'error')
     } finally {
-      if (isCurrentRun()) {
-        transcribeAbortRef.current = null
-        setLoading(false)
-      }
+      if (!isCurrentRun()) return
+      transcribeAbortRef.current = null
+      setLoading(false)
     }
   }
 
@@ -226,7 +168,7 @@ export const useTranscriptionFlow = ({
       return
     }
 
-    if (!normalizeAsrRunSettings(settings).apiKey) {
+    if (!hasAsrApiKey(settings)) {
       setFlowError('请先填写 API Key', '导入失败')
       addLog('错误: 未填写 API Key', 'error')
       return
