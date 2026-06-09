@@ -31,7 +31,6 @@ type CheckAudioResponse = {
   name?: string
   size?: number
   type?: string
-  resolvedUrl?: string
   error?: string
 }
 
@@ -371,7 +370,6 @@ export const useTranscriptionFlow = ({
       const { data } = await readJsonResponse<CheckAudioResponse>(res)
 
       if (res.ok && data?.success && typeof data.name === 'string' && typeof data.size === 'number' && typeof data.type === 'string') {
-        const resolvedUrl = typeof data.resolvedUrl === 'string' ? data.resolvedUrl : url
         setSelectedFile(null)
         if (fileInputRef.current) fileInputRef.current.value = ''
         setAudioInfo({
@@ -379,7 +377,7 @@ export const useTranscriptionFlow = ({
           size: data.size,
           type: data.type,
           source: 'remote',
-          url: resolvedUrl,
+          url,
         })
         addLog(`检查通过: ${data.name} (${formatFileSize(data.size)})`, 'success')
         return

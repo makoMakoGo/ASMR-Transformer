@@ -19,7 +19,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   }
 
   try {
-    const { source, metadata } = await checkRemoteAudio(
+    const { metadata } = await checkRemoteAudio(
       url,
       {
         fetchFn: (fetchUrl, init) => fetch(fetchUrl, init),
@@ -33,7 +33,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       name: metadata.fileName,
       size: metadata.fileSize,
       type: metadata.contentType,
-      resolvedUrl: source.isAlistPage ? source.resolvedUrl : undefined,
     })
   } catch (e) {
     if (e instanceof RemoteAudioError) {
