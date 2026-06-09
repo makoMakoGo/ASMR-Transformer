@@ -1,9 +1,8 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { normalizeLlmRunSettings, type LlmRunSettings } from '@/lib/app-settings'
-import { readJsonResponse, readResponseErrorMessage } from '@/lib/http-response'
-import { consumePolishStream, getPolishCompletionLog } from '@/lib/polish-stream'
+import type { LlmRunSettings } from '@/lib/app-settings'
+import { PolishRunError, runPolishText } from '@/lib/polish-run'
 import {
   getPolishText,
   hasPolishText,
@@ -11,10 +10,6 @@ import {
   type PolishResult,
 } from '@/lib/transcription-state'
 import type { AddLog } from '@/hooks/use-activity-log'
-
-type PolishErrorResponse = {
-  error?: string
-}
 
 export const usePolishFlow = ({
   settings,
@@ -53,58 +48,26 @@ export const usePolishFlow = ({
     const controller = new AbortController()
     abortRef.current = controller
 
-    const effectiveSettings = normalizeLlmRunSettings(settings)
     setCopied(false)
     setResult({ kind: 'streaming', text: '' })
 
     addLog('开始文本润色...', 'info')
-    addLog(`LLM API: ${effectiveSettings.llmApiUrl}`, 'info')
-    addLog(`LLM 模型: ${effectiveSettings.llmModel}`, 'info')
-    if (!effectiveSettings.llmApiKey) {
-      addLog('未填写 LLM API Key，将尝试无鉴权请求（若服务需要 Key 会失败）', 'warning')
-    }
 
     try {
-      const res = await fetch('/api/polish', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        signal: controller.signal,
-        body: JSON.stringify({
-          text,
-          apiUrl: effectiveSettings.llmApiUrl,
-          apiKey: effectiveSettings.llmApiKey || undefined,
-          model: effectiveSettings.llmModel,
-          customInstructions: effectiveSettings.customInstructions,
-        }),
-      })
-
-      const contentType = res.headers.get('content-type') || ''
-      if (!res.ok || contentType.includes('application/json')) {
-        const { data } = await readJsonResponse<PolishErrorResponse>(res)
-        const errorMessage = readResponseErrorMessage(res, data)
-        setResult({ kind: 'error', message: errorMessage })
-        addLog(`润色失败: ${errorMessage}`, 'error')
-        return
-      }
-
-      if (!res.body) {
-        setResult({ kind: 'error', message: '无响应数据' })
-        addLog('润色失败: 无响应数据', 'error')
-        return
-      }
-
-      const streamResult = await consumePolishStream(res.body, {
+      const streamResult = await runPolishText(text, settings, {
         onContent: ({ text: nextText }) => setResult({ kind: 'streaming', text: nextText }),
-        onWarning: ({ message, chunk }) => {
-          addLog(`润色响应单块解析失败，已跳过: ${message}; chunk=${chunk}`, 'warning')
-        },
-      })
-      const completionLog = getPolishCompletionLog(streamResult)
+        onLog: ({ message, type }) => addLog(message, type),
+      }, { signal: controller.signal })
       setResult({ kind: 'success', text: streamResult.text })
-      addLog(completionLog.message, completionLog.type)
+      addLog(streamResult.completionLog.message, streamResult.completionLog.type)
     } catch (e) {
       if (controller.signal.aborted) {
         addLog('润色已取消', 'info')
+        return
+      }
+      if (e instanceof PolishRunError) {
+        setResult({ kind: 'error', message: e.message })
+        addLog(`润色失败: ${e.message}`, 'error')
         return
       }
       const errorMsg = e instanceof Error ? e.message : String(e)
