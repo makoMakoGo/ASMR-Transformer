@@ -5,6 +5,7 @@ import { DEFAULT_FETCH_AUDIO_MAX_BYTES } from '@/lib/runtime-config'
 import { formatFileSize } from '@/lib/file-size'
 import { readJsonResponse, readResponseErrorMessage } from '@/lib/http-response'
 import type { Settings } from '@/lib/app-settings'
+import { fetchRemoteAudioForAsr, type RemoteAudioFetchEvent } from '@/lib/browser-remote-audio'
 import {
   formatAsrApiErrorMessage,
   normalizeAsrRunSettings,
@@ -36,10 +37,6 @@ type CheckAudioResponse = {
 
 type RuntimeConfigResponse = {
   fetchAudioMaxBytes?: unknown
-}
-
-type ProxyErrorResponse = {
-  error?: string
 }
 
 export const useTranscriptionFlow = ({
@@ -239,79 +236,37 @@ export const useTranscriptionFlow = ({
     addLog(`开始从链接导入音频: ${url}`, 'info')
 
     try {
-      const proxyRes = await fetch('/api/proxy-audio', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url }),
-      })
-
-      const contentType = proxyRes.headers.get('content-type') || ''
-      if (!proxyRes.ok || contentType.includes('application/json')) {
-        const { data } = await readJsonResponse<ProxyErrorResponse>(proxyRes)
-        throw new Error(readResponseErrorMessage(proxyRes, data))
-      }
-
-      const contentLength = proxyRes.headers.get('content-length')
-      const totalSize = contentLength ? parseInt(contentLength, 10) : 0
-      const fileNameHeader = proxyRes.headers.get('x-file-name')
-      const fileName = (() => {
-        if (!fileNameHeader) return '在线音频.mp3'
-        try {
-          return decodeURIComponent(fileNameHeader)
-        } catch {
-          return fileNameHeader
-        }
-      })()
-      const mimeType = proxyRes.headers.get('content-type') || 'audio/mpeg'
-      const clientMaxSizeBytes = fetchAudioMaxBytes
-
-      if (totalSize > 0 && totalSize > clientMaxSizeBytes) {
-        throw new Error(
-          `文件过大 (${formatFileSize(totalSize)})，为避免浏览器崩溃已中止。最大支持 ${formatFileSize(clientMaxSizeBytes)}。`
-        )
-      }
-
-      addLog(`开始下载: ${fileName} (${totalSize ? formatFileSize(totalSize) : '未知大小'})`, 'info')
-      setStatusMessage(`正在下载 ${fileName}...`)
-
-      const reader = proxyRes.body?.getReader()
-      if (!reader) {
-        throw new Error('无法读取音频数据流')
-      }
-
-      const chunks: ArrayBuffer[] = []
-      let receivedLength = 0
-
-      while (true) {
-        const { done, value } = await reader.read()
-        if (done) break
-        if (!value) continue
-
-        chunks.push(value.buffer.slice(value.byteOffset, value.byteOffset + value.byteLength))
-        receivedLength += value.byteLength
-        if (receivedLength > clientMaxSizeBytes) {
-          await reader.cancel()
-          throw new Error(
-            `文件过大 (${formatFileSize(receivedLength)})，为避免浏览器崩溃已中止。最大支持 ${formatFileSize(clientMaxSizeBytes)}。`
-          )
+      const handleRemoteAudioFetchEvent = (event: RemoteAudioFetchEvent) => {
+        if (event.type === 'download-start') {
+          const totalLabel = event.totalBytes === null ? '未知大小' : formatFileSize(event.totalBytes)
+          addLog(`开始下载: ${event.fileName} (${totalLabel})`, 'info')
+          setStatusMessage(`正在下载 ${event.fileName}...`)
+          return
         }
 
-        if (totalSize > 0) {
-          const percent = Math.round((receivedLength / totalSize) * 100)
-          setUploadProgress(percent)
-          setStatusMessage(`正在下载 ${formatFileSize(receivedLength)} / ${formatFileSize(totalSize)}`)
-          if (percent % 25 === 0) {
-            addLog(`下载进度: ${percent}%`, 'info')
+        if (event.type === 'download-progress') {
+          if (event.totalBytes !== null && event.percent !== null) {
+            setUploadProgress(event.percent)
+            setStatusMessage(
+              `正在下载 ${formatFileSize(event.receivedBytes)} / ${formatFileSize(event.totalBytes)}`
+            )
+            if (event.percent % 25 === 0) {
+              addLog(`下载进度: ${event.percent}%`, 'info')
+            }
+            return
           }
-        } else {
-          setStatusMessage(`已下载 ${formatFileSize(receivedLength)}`)
+
+          setStatusMessage(`已下载 ${formatFileSize(event.receivedBytes)}`)
+          return
         }
+
+        addLog(`下载完成: ${formatFileSize(event.receivedBytes)}`, 'success')
       }
 
-      addLog(`下载完成: ${formatFileSize(receivedLength)}`, 'success')
-
-      const audioBlob = new Blob(chunks, { type: mimeType })
-      const audioFile = new File([audioBlob], fileName, { type: mimeType })
+      const audioFile = await fetchRemoteAudioForAsr(url, {
+        maxAudioBytes: fetchAudioMaxBytes,
+        onProgress: handleRemoteAudioFetchEvent,
+      })
 
       setUploadProgress(0)
       setStatusMessage('正在上传到识别服务...')
