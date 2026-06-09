@@ -1,7 +1,6 @@
 import {
   normalizeAsrRunSettings,
   type AsrRunSettings,
-  type Settings,
 } from '@/lib/app-settings'
 
 export { normalizeAsrRunSettings, type AsrRunSettings }
@@ -46,7 +45,7 @@ export type AsrTranscriptionOptions = {
 
 const buildAbortError = (): DOMException => new DOMException('Aborted', 'AbortError')
 
-export const hasAsrApiKey = (settings: Settings): boolean =>
+export const hasAsrApiKey = (settings: AsrRunSettings): boolean =>
   normalizeAsrRunSettings(settings).apiKey.length > 0
 
 export const formatAsrApiErrorMessage = (response: AsrTranscriptionResponse): string =>
