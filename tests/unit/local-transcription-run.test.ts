@@ -100,7 +100,7 @@ describe('runLocalTranscription', () => {
       result: { kind: 'idle' },
       uploadProgress: 0,
       status: 'processing',
-      statusMessage: '正在上传到识别服务...',
+      statusMessage: '正在上传文件...',
     })
     expect(events.states).toContainEqual({
       uploadProgress: 25,
@@ -114,6 +114,22 @@ describe('runLocalTranscription', () => {
     expect(events.logs).toContainEqual({ message: '上传完成，正在识别语音...', type: 'success' })
     expect(events.logs.filter((entry) => entry.message === '仍在识别中... 已等待 10s')).toHaveLength(1)
     expect(events.logs).toContainEqual({ message: '转录成功! 文本长度: 2 字符', type: 'success' })
+  })
+
+  it('handles missing callbacks without throwing', async () => {
+    const xhr = new FakeXMLHttpRequest()
+    const pending = runLocalTranscription(buildFile(), buildSettings(), undefined, {
+      requestFactory: () => xhr as unknown as XMLHttpRequest,
+    })
+
+    xhr.onload?.()
+
+    await expect(pending).resolves.toMatchObject({
+      kind: 'success',
+      result: { kind: 'success', text: 'ok' },
+      status: 'done',
+      statusMessage: '转录完成',
+    })
   })
 
   it('returns an empty result when ASR succeeds without text', async () => {
