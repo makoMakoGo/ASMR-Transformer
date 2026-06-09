@@ -1,6 +1,10 @@
-import { normalizeSettingsForStorage, type Settings } from '@/lib/app-settings'
+import {
+  normalizeAsrRunSettings,
+  type AsrRunSettings,
+  type Settings,
+} from '@/lib/app-settings'
 
-export type AsrRunSettings = Pick<Settings, 'apiKey' | 'apiUrl' | 'model'>
+export { normalizeAsrRunSettings, type AsrRunSettings }
 
 export type AsrUploadProgress = {
   loaded: number
@@ -41,15 +45,6 @@ export type AsrTranscriptionOptions = {
 }
 
 const buildAbortError = (): DOMException => new DOMException('Aborted', 'AbortError')
-
-export const normalizeAsrRunSettings = (settings: Settings): AsrRunSettings => {
-  const normalized = normalizeSettingsForStorage(settings)
-  return {
-    apiKey: normalized.apiKey,
-    apiUrl: normalized.apiUrl,
-    model: normalized.model,
-  }
-}
 
 export const hasAsrApiKey = (settings: Settings): boolean =>
   normalizeAsrRunSettings(settings).apiKey.length > 0

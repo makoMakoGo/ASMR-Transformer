@@ -4,6 +4,8 @@ import {
   DEFAULT_ASR_MODEL,
   DEFAULT_LLM_MODEL,
   DEFAULT_SETTINGS,
+  normalizeAsrRunSettings,
+  normalizeLlmRunSettings,
   normalizeSettingsForStorage,
 } from '@/lib/app-settings'
 import { formatFileSize } from '@/lib/file-size'
@@ -77,6 +79,31 @@ describe('app-settings', () => {
       ...DEFAULT_SETTINGS,
       apiKey: 'secret',
       llmApiKey: 'llm-secret',
+    })
+  })
+
+  it('normalizes ASR and LLM runtime slices independently', () => {
+    const settings = {
+      ...DEFAULT_SETTINGS,
+      apiKey: '  asr-secret  ',
+      apiUrl: ' ',
+      model: ' custom-asr ',
+      llmApiUrl: ' ',
+      llmModel: ' custom-llm ',
+      llmApiKey: '  llm-secret  ',
+      customInstructions: ' custom instructions ',
+    }
+
+    expect(normalizeAsrRunSettings(settings)).toEqual({
+      apiKey: 'asr-secret',
+      apiUrl: DEFAULT_SETTINGS.apiUrl,
+      model: 'custom-asr',
+    })
+    expect(normalizeLlmRunSettings(settings)).toEqual({
+      llmApiUrl: DEFAULT_SETTINGS.llmApiUrl,
+      llmModel: 'custom-llm',
+      llmApiKey: 'llm-secret',
+      customInstructions: 'custom instructions',
     })
   })
 })

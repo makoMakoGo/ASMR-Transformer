@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { normalizeSettingsForStorage, type Settings } from '@/lib/app-settings'
+import { normalizeLlmRunSettings, type LlmRunSettings } from '@/lib/app-settings'
 import { readJsonResponse, readResponseErrorMessage } from '@/lib/http-response'
 import { consumePolishStream, getPolishCompletionLog } from '@/lib/polish-stream'
 import {
@@ -20,7 +20,7 @@ export const usePolishFlow = ({
   settings,
   addLog,
 }: {
-  settings: Settings
+  settings: LlmRunSettings
   addLog: AddLog
 }) => {
   const [result, setResult] = useState<PolishResult>(IDLE_POLISH_RESULT)
@@ -53,7 +53,7 @@ export const usePolishFlow = ({
     const controller = new AbortController()
     abortRef.current = controller
 
-    const effectiveSettings = normalizeSettingsForStorage(settings)
+    const effectiveSettings = normalizeLlmRunSettings(settings)
     setCopied(false)
     setResult({ kind: 'streaming', text: '' })
 
