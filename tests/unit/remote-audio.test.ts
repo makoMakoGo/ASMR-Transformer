@@ -9,6 +9,12 @@ import {
   resolveRemoteAudioSource,
 } from '@/lib/remote-audio'
 
+const ALIST_PAGE_URL = 'https://www.asmrgay.com/asmr/123'
+const ALIST_API_URL = 'https://www.asmrgay.com/api/fs/get'
+const DIRECT_AUDIO_URL = 'https://www.asmrgay.com/d/audio/test.mp3'
+const RESOLVED_AUDIO_URL = 'https://asmr.121231234.xyz/file/test.mp3'
+const RESOLVED_AUDIO_ORIGIN = 'https://asmr.121231234.xyz'
+
 afterEach(() => {
   vi.useRealTimers()
 })
@@ -24,7 +30,7 @@ describe('resolveRemoteAudioSource', () => {
 
   it('resolves AList page urls through the shared resolver', async () => {
     const fetchFn = async (url: string, init?: RequestInit) => {
-      expect(url).toBe('https://www.asmrgay.com/api/fs/get')
+      expect(url).toBe(ALIST_API_URL)
       expect(init?.method).toBe('POST')
       expect((init?.headers as Record<string, string>)['User-Agent']).toBe(DEFAULT_REMOTE_AUDIO_USER_AGENT)
       expect(init?.body).toBe(JSON.stringify({ path: '/asmr/123' }))
@@ -33,7 +39,7 @@ describe('resolveRemoteAudioSource', () => {
         JSON.stringify({
           code: 200,
           data: {
-            raw_url: 'https://asmr.121231234.xyz/file/test.mp3',
+            raw_url: RESOLVED_AUDIO_URL,
             size: 321,
             type: 'audio/mpeg',
           },
@@ -45,10 +51,10 @@ describe('resolveRemoteAudioSource', () => {
       )
     }
 
-    const source = await resolveRemoteAudioSource('https://www.asmrgay.com/asmr/123', fetchFn)
+    const source = await resolveRemoteAudioSource(ALIST_PAGE_URL, fetchFn)
 
     expect(source.isAlistPage).toBe(true)
-    expect(source.resolvedUrl).toBe('https://asmr.121231234.xyz/file/test.mp3')
+    expect(source.resolvedUrl).toBe(RESOLVED_AUDIO_URL)
     expect(source.fileNameHint).toBe('123')
     expect(source.fileSizeHint).toBe(321)
     expect(source.contentTypeHint).toBe('audio/mpeg')
@@ -59,9 +65,9 @@ describe('buildRemoteAudioMetadata', () => {
   it('prefers response headers over hints when both are available', () => {
     const metadata = buildRemoteAudioMetadata({
       source: {
-        inputUrl: 'https://www.asmrgay.com/asmr/123',
-        resolvedUrl: 'https://asmr.121231234.xyz/file/test.mp3',
-        resolvedUrlObject: new URL('https://asmr.121231234.xyz/file/test.mp3'),
+        inputUrl: ALIST_PAGE_URL,
+        resolvedUrl: RESOLVED_AUDIO_URL,
+        resolvedUrlObject: new URL(RESOLVED_AUDIO_URL),
         isAlistPage: true,
         fileNameHint: 'hint.mp3',
         fileSizeHint: 12,
@@ -84,7 +90,7 @@ describe('buildRemoteAudioMetadata', () => {
     expect(() =>
       buildRemoteAudioMetadata({
         source: {
-          inputUrl: 'https://www.asmrgay.com/asmr/123',
+          inputUrl: ALIST_PAGE_URL,
           resolvedUrl: 'https://asmr.121231234.xyz/file/test.wma',
           resolvedUrlObject: new URL('https://asmr.121231234.xyz/file/test.wma'),
           isAlistPage: true,
@@ -99,7 +105,7 @@ describe('buildRemoteAudioMetadata', () => {
     expect(() =>
       buildRemoteAudioMetadata({
         source: {
-          inputUrl: 'https://www.asmrgay.com/asmr/123',
+          inputUrl: ALIST_PAGE_URL,
           resolvedUrl: 'https://asmr.121231234.xyz/file/blob',
           resolvedUrlObject: new URL('https://asmr.121231234.xyz/file/blob'),
           isAlistPage: true,
@@ -126,10 +132,10 @@ describe('checkRemoteAudio', () => {
       })
     }
 
-    const result = await checkRemoteAudio('https://www.asmrgay.com/d/audio/test.mp3', { fetchFn })
+    const result = await checkRemoteAudio(DIRECT_AUDIO_URL, { fetchFn })
 
     expect(calls).toEqual([
-      { url: 'https://www.asmrgay.com/d/audio/test.mp3', method: 'HEAD' },
+      { url: DIRECT_AUDIO_URL, method: 'HEAD' },
     ])
     expect(result.source.isAlistPage).toBe(false)
     expect(result.metadata).toEqual({
@@ -141,17 +147,16 @@ describe('checkRemoteAudio', () => {
   })
 
   it('checks AList page urls by resolving internally before reading metadata', async () => {
-    const resolvedUrl = 'https://asmr.121231234.xyz/file/test.mp3'
     const calls: Array<{ url: string; method?: string }> = []
     const fetchFn = async (url: string, init?: RequestInit) => {
       calls.push({ url, method: init?.method })
 
-      if (url === 'https://www.asmrgay.com/api/fs/get') {
+      if (url === ALIST_API_URL) {
         return new Response(
           JSON.stringify({
             code: 200,
             data: {
-              raw_url: resolvedUrl,
+              raw_url: RESOLVED_AUDIO_URL,
               size: 321,
               type: 'audio/mpeg',
             },
@@ -163,7 +168,7 @@ describe('checkRemoteAudio', () => {
         )
       }
 
-      if (url === resolvedUrl) {
+      if (url === RESOLVED_AUDIO_URL) {
         return new Response(null, {
           status: 200,
           headers: {
@@ -176,14 +181,14 @@ describe('checkRemoteAudio', () => {
       throw new Error(`unexpected fetch: ${url}`)
     }
 
-    const result = await checkRemoteAudio('https://www.asmrgay.com/asmr/123', { fetchFn })
+    const result = await checkRemoteAudio(ALIST_PAGE_URL, { fetchFn })
 
     expect(calls).toEqual([
-      { url: 'https://www.asmrgay.com/api/fs/get', method: 'POST' },
-      { url: resolvedUrl, method: 'HEAD' },
+      { url: ALIST_API_URL, method: 'POST' },
+      { url: RESOLVED_AUDIO_URL, method: 'HEAD' },
     ])
-    expect(result.source.inputUrl).toBe('https://www.asmrgay.com/asmr/123')
-    expect(result.source.resolvedUrl).toBe(resolvedUrl)
+    expect(result.source.inputUrl).toBe(ALIST_PAGE_URL)
+    expect(result.source.resolvedUrl).toBe(RESOLVED_AUDIO_URL)
     expect(result.metadata).toEqual({
       fileName: '123',
       fileSize: 456,
@@ -192,11 +197,83 @@ describe('checkRemoteAudio', () => {
     })
   })
 
+  it('normalizes failed AList resolution checks', async () => {
+    const calls: Array<{ url: string; method?: string }> = []
+    const fetchFn = async (url: string, init?: RequestInit) => {
+      calls.push({ url, method: init?.method })
+
+      if (url === ALIST_API_URL) {
+        return new Response(
+          JSON.stringify({
+            code: 200,
+            data: {
+              size: 321,
+              type: 'audio/mpeg',
+            },
+          }),
+          {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' },
+          }
+        )
+      }
+
+      throw new Error(`unexpected fetch: ${url}`)
+    }
+
+    await expect(checkRemoteAudio(ALIST_PAGE_URL, { fetchFn })).rejects.toMatchObject({
+      code: 'ALIST_RESOLVE_FAILED',
+      status: 400,
+      message: '解析播放页面失败: 无法获取音频地址',
+    })
+    expect(calls).toEqual([{ url: ALIST_API_URL, method: 'POST' }])
+  })
+
+  it('normalizes failed HEAD checks after AList resolution', async () => {
+    const calls: Array<{ url: string; method?: string }> = []
+    const fetchFn = async (url: string, init?: RequestInit) => {
+      calls.push({ url, method: init?.method })
+
+      if (url === ALIST_API_URL) {
+        return new Response(
+          JSON.stringify({
+            code: 200,
+            data: {
+              raw_url: RESOLVED_AUDIO_URL,
+              size: 321,
+              type: 'audio/mpeg',
+            },
+          }),
+          {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' },
+          }
+        )
+      }
+
+      if (url === RESOLVED_AUDIO_URL) {
+        return new Response(null, { status: 404, statusText: 'Not Found' })
+      }
+
+      throw new Error(`unexpected fetch: ${url}`)
+    }
+
+    await expect(checkRemoteAudio(ALIST_PAGE_URL, { fetchFn })).rejects.toMatchObject({
+      code: 'SOURCE_RESPONSE_FAILED',
+      status: 400,
+      message: 'HTTP 404: Not Found',
+    })
+    expect(calls).toEqual([
+      { url: ALIST_API_URL, method: 'POST' },
+      { url: RESOLVED_AUDIO_URL, method: 'HEAD' },
+    ])
+  })
+
   it('normalizes failed source HEAD checks', async () => {
     const fetchFn = async () => new Response(null, { status: 404, statusText: 'Not Found' })
 
     await expect(
-      checkRemoteAudio('https://www.asmrgay.com/d/audio/test.mp3', { fetchFn })
+      checkRemoteAudio(DIRECT_AUDIO_URL, { fetchFn })
     ).rejects.toMatchObject({
       code: 'SOURCE_RESPONSE_FAILED',
       status: 400,
@@ -210,7 +287,7 @@ describe('checkRemoteAudio', () => {
     }
 
     await expect(
-      checkRemoteAudio('https://www.asmrgay.com/d/audio/test.mp3', { fetchFn })
+      checkRemoteAudio(DIRECT_AUDIO_URL, { fetchFn })
     ).rejects.toMatchObject({
       code: 'SOURCE_HEAD_FAILED',
       status: 500,
@@ -227,7 +304,7 @@ describe('checkRemoteAudio', () => {
     }
 
     await expect(
-      checkRemoteAudio('https://www.asmrgay.com/d/audio/test.mp3', {
+      checkRemoteAudio(DIRECT_AUDIO_URL, {
         fetchFn,
         signal: controller.signal,
       })
@@ -245,7 +322,7 @@ describe('checkRemoteAudio', () => {
           reject(new DOMException('aborted', 'AbortError'))
         })
       })
-    const pending = checkRemoteAudio('https://www.asmrgay.com/d/audio/test.mp3', {
+    const pending = checkRemoteAudio(DIRECT_AUDIO_URL, {
       fetchFn,
       timeoutMs: 1000,
     }).catch((error: unknown) => error)
@@ -268,7 +345,7 @@ describe('proxyRemoteAudio', () => {
       },
     })
     const fetchFn = async (url: string, init?: RequestInit) => {
-      expect(url).toBe('https://www.asmrgay.com/d/audio/test.mp3')
+      expect(url).toBe(DIRECT_AUDIO_URL)
       expect(init?.method).toBe('GET')
       expect((init?.headers as Record<string, string>)['User-Agent']).toBe(DEFAULT_REMOTE_AUDIO_USER_AGENT)
       expect((init?.headers as Record<string, string>).Referer).toBe('https://www.asmrgay.com')
@@ -283,7 +360,7 @@ describe('proxyRemoteAudio', () => {
       })
     }
 
-    const result = await proxyRemoteAudio('https://www.asmrgay.com/d/audio/test.mp3', {
+    const result = await proxyRemoteAudio(DIRECT_AUDIO_URL, {
       fetchFn,
       maxAudioBytes: 10,
     })
@@ -298,7 +375,6 @@ describe('proxyRemoteAudio', () => {
   })
 
   it('proxies AList page urls by resolving the audio url internally', async () => {
-    const resolvedUrl = 'https://asmr.121231234.xyz/file/test.mp3'
     const calls: Array<{ url: string; method?: string }> = []
     const body = new ReadableStream<Uint8Array>({
       start(controller) {
@@ -309,12 +385,12 @@ describe('proxyRemoteAudio', () => {
     const fetchFn = async (url: string, init?: RequestInit) => {
       calls.push({ url, method: init?.method })
 
-      if (url === 'https://www.asmrgay.com/api/fs/get') {
+      if (url === ALIST_API_URL) {
         return new Response(
           JSON.stringify({
             code: 200,
             data: {
-              raw_url: resolvedUrl,
+              raw_url: RESOLVED_AUDIO_URL,
               size: 3,
               type: 'audio/mpeg',
             },
@@ -326,8 +402,8 @@ describe('proxyRemoteAudio', () => {
         )
       }
 
-      if (url === resolvedUrl) {
-        expect((init?.headers as Record<string, string>).Referer).toBe('https://asmr.121231234.xyz')
+      if (url === RESOLVED_AUDIO_URL) {
+        expect((init?.headers as Record<string, string>).Referer).toBe(RESOLVED_AUDIO_ORIGIN)
         return new Response(body, {
           status: 200,
           headers: {
@@ -340,17 +416,17 @@ describe('proxyRemoteAudio', () => {
       throw new Error(`unexpected fetch: ${url}`)
     }
 
-    const result = await proxyRemoteAudio('https://www.asmrgay.com/asmr/123', {
+    const result = await proxyRemoteAudio(ALIST_PAGE_URL, {
       fetchFn,
       maxAudioBytes: 10,
     })
 
     expect(calls).toEqual([
-      { url: 'https://www.asmrgay.com/api/fs/get', method: 'POST' },
-      { url: resolvedUrl, method: 'GET' },
+      { url: ALIST_API_URL, method: 'POST' },
+      { url: RESOLVED_AUDIO_URL, method: 'GET' },
     ])
-    expect(result.source.inputUrl).toBe('https://www.asmrgay.com/asmr/123')
-    expect(result.source.resolvedUrl).toBe(resolvedUrl)
+    expect(result.source.inputUrl).toBe(ALIST_PAGE_URL)
+    expect(result.source.resolvedUrl).toBe(RESOLVED_AUDIO_URL)
 
     const proxied = await new Response(result.body).arrayBuffer()
     expect([...new Uint8Array(proxied)]).toEqual([4, 5, 6])
@@ -362,7 +438,7 @@ describe('proxyRemoteAudio', () => {
         JSON.stringify({
           code: 200,
           data: {
-            raw_url: 'https://asmr.121231234.xyz/file/test.mp3',
+            raw_url: RESOLVED_AUDIO_URL,
             size: 11,
             type: 'audio/mpeg',
           },
@@ -374,7 +450,7 @@ describe('proxyRemoteAudio', () => {
       )
 
     await expect(
-      proxyRemoteAudio('https://www.asmrgay.com/audio/test', {
+      proxyRemoteAudio(ALIST_PAGE_URL, {
         fetchFn,
         maxAudioBytes: 10,
       })
@@ -396,7 +472,7 @@ describe('proxyRemoteAudio', () => {
       })
 
     await expect(
-      proxyRemoteAudio('https://www.asmrgay.com/d/audio/test.mp3', {
+      proxyRemoteAudio(DIRECT_AUDIO_URL, {
         fetchFn,
         maxAudioBytes: 10,
       })
