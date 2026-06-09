@@ -86,6 +86,54 @@ describe('fetchRemoteAudioForAsr', () => {
     ])
   })
 
+  it('treats malformed and non-positive content-length as unknown-size downloads', async () => {
+    for (const contentLength of ['abc', '0', '-1']) {
+      const events: RemoteAudioFetchEvent[] = []
+      const fetchFn: typeof fetch = async () =>
+        new Response(streamFromChunks([new Uint8Array([1, 2, 3])]), {
+          status: 200,
+          headers: {
+            'content-length': contentLength,
+            'content-type': 'audio/mpeg',
+            'x-file-name': 'unknown-size.mp3',
+          },
+        })
+
+      const file = await fetchRemoteAudioForAsr(AUDIO_URL, {
+        fetchFn,
+        maxAudioBytes: 10,
+        onProgress: (event) => events.push(event),
+      })
+
+      expect(file.size).toBe(3)
+      expect(events).toEqual([
+        { type: 'download-start', fileName: 'unknown-size.mp3', totalBytes: null },
+        { type: 'download-progress', receivedBytes: 3, totalBytes: null, percent: null },
+        { type: 'download-complete', receivedBytes: 3 },
+      ])
+    }
+  })
+
+  it('uses the default file name when the proxy omits x-file-name', async () => {
+    const fetchFn: typeof fetch = async () =>
+      new Response(streamFromChunks([new Uint8Array([7, 8, 9])]), {
+        status: 200,
+        headers: {
+          'content-type': 'audio/wav',
+        },
+      })
+
+    const file = await fetchRemoteAudioForAsr(AUDIO_URL, {
+      fetchFn,
+      maxAudioBytes: 10,
+    })
+
+    expect(file.name).toBe('在线音频.mp3')
+    expect(file.type).toBe('audio/wav')
+    expect(file.size).toBe(3)
+    expect([...new Uint8Array(await file.arrayBuffer())]).toEqual([7, 8, 9])
+  })
+
   it('rejects proxy audio that declares a content length above the browser limit', async () => {
     const fetchFn: typeof fetch = async () =>
       new Response(streamFromChunks([new Uint8Array([1])]), {
@@ -142,6 +190,31 @@ describe('fetchRemoteAudioForAsr', () => {
         maxAudioBytes: 10,
       })
     ).rejects.toThrow('音频 URL 无效或不受支持')
+  })
+
+  it('passes the abort signal to the proxy fetch request', async () => {
+    const controller = new AbortController()
+    const fetchFn: typeof fetch = async (_url, init) => {
+      expect(init?.signal).toBe(controller.signal)
+      return new Response(streamFromChunks([new Uint8Array([1])]), {
+        status: 200,
+        headers: {
+          'content-length': '1',
+          'content-type': 'audio/mpeg',
+        },
+      })
+    }
+
+    await expect(
+      fetchRemoteAudioForAsr(AUDIO_URL, {
+        fetchFn,
+        maxAudioBytes: 10,
+        signal: controller.signal,
+      })
+    ).resolves.toMatchObject({
+      size: 1,
+      type: 'audio/mpeg',
+    })
   })
 
   it('rejects proxy responses without a readable body', async () => {
