@@ -4,7 +4,7 @@ import {
   REMOTE_AUDIO_EXTENSIONS,
 } from '@/lib/remote-audio-policy'
 
-export const allowedAudioExtensions = REMOTE_AUDIO_EXTENSIONS
+export const allowedAudioExtensions = [...REMOTE_AUDIO_EXTENSIONS]
 
 export const isAllowedAudioHost = isAllowedRemoteAudioHost
 
