@@ -31,7 +31,9 @@ export type LocalTranscriptionRunResult = LocalTranscriptionRunState & {
 }
 
 const isAbortError = (error: unknown): boolean =>
-  error instanceof DOMException && error.name === 'AbortError'
+  typeof DOMException !== 'undefined' &&
+  error instanceof DOMException &&
+  error.name === 'AbortError'
 
 export const runLocalTranscription = async (
   file: File,
@@ -44,7 +46,7 @@ export const runLocalTranscription = async (
     result: IDLE_TRANSCRIPTION_RESULT,
     uploadProgress: 0,
     status: 'processing',
-    statusMessage: '正在上传到识别服务...',
+    statusMessage: '正在上传文件...',
   }
   let lastHeartbeat = 0
 
@@ -64,7 +66,6 @@ export const runLocalTranscription = async (
   emitLog({ message: `目标 API: ${effectiveSettings.apiUrl}`, type: 'info' })
   emitLog({ message: `使用模型: ${effectiveSettings.model}`, type: 'info' })
   emitLog({ message: '正在上传文件...', type: 'info' })
-  emitState({ statusMessage: '正在上传文件...' })
 
   try {
     const response = await runAsrTranscription(file, effectiveSettings, {
