@@ -3,17 +3,9 @@
  * 供 check-audio 和 proxy-audio API 共享使用
  */
 
-// AList 站点配置（支持自动解析播放页面）
-export const ALIST_SITES = [
-  'asmrgay.com',
-  'asmr.pw',
-  'asmr.loan',
-  'asmr.party',
-  'asmr.stream',
-]
+import { ALIST_PAGE_HOSTS, isAlistPageHost } from '@/lib/remote-audio-policy'
 
-const isAlistHost = (hostname: string): boolean =>
-  ALIST_SITES.some((h) => hostname === h || hostname.endsWith(`.${h}`))
+export const ALIST_SITES = ALIST_PAGE_HOSTS
 
 /**
  * 检测是否为 AList 播放页面 URL（非 /d/ 开头的路径）
@@ -22,7 +14,7 @@ const isAlistHost = (hostname: string): boolean =>
 export const isAlistPageUrl = (url: string): boolean => {
   try {
     const parsed = new URL(url)
-    if (!isAlistHost(parsed.hostname)) return false
+    if (!isAlistPageHost(parsed.hostname)) return false
     // 播放页面路径不以 /d/ 开头
     return !parsed.pathname.startsWith('/d/')
   } catch {
