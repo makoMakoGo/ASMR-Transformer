@@ -232,11 +232,20 @@ export const useTranscriptionFlow = ({
       return
     }
 
+    const previousController = transcribeAbortRef.current
+    previousController?.abort()
+    const controller = new AbortController()
+    transcribeAbortRef.current = controller
+    const isCurrentRun = () => transcribeAbortRef.current === controller
+
     beginRun('正在连接音频源...')
+    if (previousController) addLog('已取消上一次转录请求', 'info')
     addLog(`开始从链接导入音频: ${url}`, 'info')
 
     try {
       const handleRemoteAudioFetchEvent = (event: RemoteAudioFetchEvent) => {
+        if (!isCurrentRun()) return
+
         if (event.type === 'download-start') {
           const totalLabel = event.totalBytes === null ? '未知大小' : formatFileSize(event.totalBytes)
           addLog(`开始下载: ${event.fileName} (${totalLabel})`, 'info')
@@ -266,17 +275,33 @@ export const useTranscriptionFlow = ({
       const audioFile = await fetchRemoteAudioForAsr(url, {
         maxAudioBytes: fetchAudioMaxBytes,
         onProgress: handleRemoteAudioFetchEvent,
+        signal: controller.signal,
       })
 
+      if (!isCurrentRun()) return
+      transcribeAbortRef.current = null
       setUploadProgress(0)
       setStatusMessage('正在上传到识别服务...')
       addLog('开始上传到 ASR 服务...', 'info')
       await transcribe(audioFile, true)
     } catch (e) {
+      if (!isCurrentRun()) return
+
+      if (e instanceof DOMException && e.name === 'AbortError') {
+        addLog('转录已取消', 'info')
+        setStatus('idle')
+        setStatusMessage('')
+        return
+      }
+
       const errorMsg = e instanceof Error ? e.message : String(e)
       setFlowError(`请求失败: ${errorMsg}`, '导入失败')
       addLog(`导入失败: ${errorMsg}`, 'error')
-      setLoading(false)
+    } finally {
+      if (isCurrentRun()) {
+        transcribeAbortRef.current = null
+        setLoading(false)
+      }
     }
   }
 

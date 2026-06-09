@@ -22,6 +22,7 @@ export type FetchRemoteAudioForAsrOptions = {
   fetchFn?: typeof fetch
   maxAudioBytes: number
   onProgress?: (event: RemoteAudioFetchEvent) => void
+  signal?: AbortSignal
 }
 
 type ProxyErrorResponse = {
@@ -52,6 +53,12 @@ const parseContentLength = (value: string | null): number | null => {
 const buildClientSizeErrorMessage = (size: number, maxAudioBytes: number): string =>
   `文件过大 (${formatFileSize(size)})，为避免浏览器崩溃已中止。最大支持 ${formatFileSize(maxAudioBytes)}。`
 
+const throwIfAborted = (signal: AbortSignal | undefined): void => {
+  if (signal?.aborted) {
+    throw new DOMException('Aborted', 'AbortError')
+  }
+}
+
 const assertProxyAudioResponse = async (response: Response): Promise<void> => {
   const contentType = response.headers.get('content-type') || ''
   if (response.ok && !contentType.includes('application/json')) return
@@ -66,12 +73,16 @@ export const fetchRemoteAudioForAsr = async (
     fetchFn = fetch,
     maxAudioBytes,
     onProgress,
+    signal,
   }: FetchRemoteAudioForAsrOptions
 ): Promise<File> => {
+  throwIfAborted(signal)
+
   const response = await fetchFn(PROXY_AUDIO_ENDPOINT, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ url }),
+    signal,
   })
 
   await assertProxyAudioResponse(response)
@@ -95,15 +106,17 @@ export const fetchRemoteAudioForAsr = async (
     totalBytes,
   })
 
-  const chunks: ArrayBuffer[] = []
+  const chunks: Array<Uint8Array<ArrayBuffer>> = []
   let receivedBytes = 0
 
   while (true) {
+    throwIfAborted(signal)
     const { done, value } = await reader.read()
+    throwIfAborted(signal)
     if (done) break
     if (!value) continue
 
-    chunks.push(value.buffer.slice(value.byteOffset, value.byteOffset + value.byteLength))
+    chunks.push(value as Uint8Array<ArrayBuffer>)
     receivedBytes += value.byteLength
 
     if (receivedBytes > maxAudioBytes) {
@@ -124,5 +137,5 @@ export const fetchRemoteAudioForAsr = async (
     receivedBytes,
   })
 
-  return new File([new Blob(chunks, { type: mimeType })], fileName, { type: mimeType })
+  return new File(chunks, fileName, { type: mimeType })
 }
