@@ -1,32 +1,12 @@
-const AUDIO_EXTENSIONS = ['mp3', 'wav', 'm4a', 'flac', 'ogg', 'webm', 'aac']
-const ALLOWED_AUDIO_HOSTS: Array<{ host: string; allowSubdomains: boolean }> = [
-  { host: 'asmrgay.com', allowSubdomains: true },
-  { host: 'asmr.pw', allowSubdomains: true },
-  { host: 'asmr.loan', allowSubdomains: true },
-  { host: 'asmr.party', allowSubdomains: true },
-  { host: 'asmr.stream', allowSubdomains: true },
-  { host: 'asmr.121231234.xyz', allowSubdomains: false },
-]
+import {
+  getRemoteAudioMimeType,
+  isAllowedRemoteAudioHost,
+  REMOTE_AUDIO_EXTENSIONS,
+} from '@/lib/remote-audio-policy'
 
-const MIME_MAP: Record<string, string> = {
-  mp3: 'audio/mpeg',
-  wav: 'audio/wav',
-  m4a: 'audio/mp4',
-  flac: 'audio/flac',
-  ogg: 'audio/ogg',
-  webm: 'audio/webm',
-  aac: 'audio/aac',
-}
+export const allowedAudioExtensions = REMOTE_AUDIO_EXTENSIONS
 
-export const allowedAudioExtensions = AUDIO_EXTENSIONS
-
-export const isAllowedAudioHost = (host: string): boolean => {
-  const h = host.trim().toLowerCase()
-  if (!h) return false
-  return ALLOWED_AUDIO_HOSTS.some(({ host: allowed, allowSubdomains }) =>
-    allowSubdomains ? h === allowed || h.endsWith(`.${allowed}`) : h === allowed
-  )
-}
+export const isAllowedAudioHost = isAllowedRemoteAudioHost
 
 const parseIpv4 = (host: string): [number, number, number, number] | null => {
   if (!/^\d{1,3}(\.\d{1,3}){3}$/.test(host)) return null
@@ -128,7 +108,5 @@ export const validateAndParseAudioUrl = (
 
 export const getAudioMimeType = (input: string): string | null => {
   const ext = input.startsWith('http') ? getExtensionFromUrl(input) : input
-  const normalizedExt = ext.replace('.', '').toLowerCase()
-
-  return MIME_MAP[normalizedExt] || null
+  return getRemoteAudioMimeType(ext)
 }
