@@ -11,6 +11,9 @@ export type Settings = {
   customInstructions: string
 }
 
+export type AsrRunSettings = Pick<Settings, 'apiKey' | 'apiUrl' | 'model'>
+export type LlmRunSettings = Pick<Settings, 'llmApiUrl' | 'llmModel' | 'llmApiKey' | 'customInstructions'>
+
 export const DEFAULT_ASR_API_URL = 'https://api.siliconflow.cn/v1/audio/transcriptions'
 export const DEFAULT_ASR_MODEL = 'TeleAI/TeleSpeechASR'
 export const DEFAULT_LLM_API_URL = 'https://juya.owl.ci/v1'
@@ -43,14 +46,22 @@ export const applySettingsDefaults = (input: Partial<Settings>): Settings => ({
   customInstructions: readConfiguredValue(input.customInstructions, DEFAULT_SETTINGS.customInstructions),
 })
 
-export const normalizeSettingsForStorage = (input: Settings): Settings => ({
+export const normalizeAsrRunSettings = (input: AsrRunSettings): AsrRunSettings => ({
   apiKey: input.apiKey.trim(),
   apiUrl: input.apiUrl.trim() || DEFAULT_SETTINGS.apiUrl,
   model: input.model.trim() || DEFAULT_SETTINGS.model,
+})
+
+export const normalizeLlmRunSettings = (input: LlmRunSettings): LlmRunSettings => ({
   llmApiUrl: input.llmApiUrl.trim() || DEFAULT_SETTINGS.llmApiUrl,
   llmModel: input.llmModel.trim() || DEFAULT_SETTINGS.llmModel,
   llmApiKey: input.llmApiKey.trim(),
   customInstructions: input.customInstructions.trim() || DEFAULT_SETTINGS.customInstructions,
+})
+
+export const normalizeSettingsForStorage = (input: Settings): Settings => ({
+  ...normalizeAsrRunSettings(input),
+  ...normalizeLlmRunSettings(input),
 })
 
 export const settingsFromEnv = (env: Partial<EnvMap>): Settings =>
