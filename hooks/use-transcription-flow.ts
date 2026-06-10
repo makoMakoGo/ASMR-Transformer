@@ -5,9 +5,12 @@ import { DEFAULT_FETCH_AUDIO_MAX_BYTES } from '@/lib/runtime-config'
 import { formatFileSize } from '@/lib/file-size'
 import { readJsonResponse, readResponseErrorMessage } from '@/lib/http-response'
 import type { Settings } from '@/lib/app-settings'
-import { fetchRemoteAudioForAsr, type RemoteAudioFetchEvent } from '@/lib/browser-remote-audio'
 import { hasAsrApiKey } from '@/lib/asr-transcription'
-import { runLocalTranscription, type LocalTranscriptionRunStatePatch } from '@/lib/local-transcription-run'
+import {
+  runTranscription,
+  type TranscriptionRunInput,
+  type TranscriptionRunStatePatch,
+} from '@/lib/transcription-run'
 import {
   getTranscriptionDisplayText,
   IDLE_TRANSCRIPTION_RESULT,
@@ -95,30 +98,26 @@ export const useTranscriptionFlow = ({
     setCopied(false)
   }
 
-  const beginRun = (nextStatusMessage: string, skipClearLogs = false) => {
-    prepareRun(skipClearLogs)
-    setTranscriptionResult(IDLE_TRANSCRIPTION_RESULT)
-    setUploadProgress(0)
-    setStatus('processing')
-    setStatusMessage(nextStatusMessage)
-  }
-
   const setFlowError = (message: string, nextStatusMessage: string) => {
     setTranscriptionResult({ kind: 'error', message })
     setStatus('error')
     setStatusMessage(nextStatusMessage)
   }
 
-  const applyTranscriptionRunState = (patch: LocalTranscriptionRunStatePatch) => {
+  const applyTranscriptionRunState = (patch: TranscriptionRunStatePatch) => {
     if (patch.result) setTranscriptionResult(patch.result)
     if (typeof patch.uploadProgress === 'number') setUploadProgress(patch.uploadProgress)
     if (patch.status) setStatus(patch.status)
     if (typeof patch.statusMessage === 'string') setStatusMessage(patch.statusMessage)
   }
 
-  const transcribe = async (file: File, skipClearLogs = false) => {
+  const runSelectedTranscription = async (
+    input: TranscriptionRunInput,
+    missingApiKeyStatusMessage: string,
+    skipClearLogs = false
+  ) => {
     if (!hasAsrApiKey(settings)) {
-      setFlowError('请先填写 API Key', '转录失败')
+      setFlowError('请先填写 API Key', missingApiKeyStatusMessage)
       addLog('错误: 未填写 API Key', 'error')
       return
     }
@@ -133,7 +132,7 @@ export const useTranscriptionFlow = ({
     if (previousController) addLog('已取消上一次转录请求', 'info')
 
     try {
-      await runLocalTranscription(file, settings, {
+      await runTranscription(input, settings, {
         onState: (patch) => {
           if (!isCurrentRun()) return
           applyTranscriptionRunState(patch)
@@ -148,6 +147,10 @@ export const useTranscriptionFlow = ({
       transcribeAbortRef.current = null
       setLoading(false)
     }
+  }
+
+  const transcribe = async (file: File, skipClearLogs = false) => {
+    await runSelectedTranscription({ source: 'local', file }, '转录失败', skipClearLogs)
   }
 
   const importFromUrl = async (urlOverride?: string) => {
@@ -168,83 +171,14 @@ export const useTranscriptionFlow = ({
       return
     }
 
-    if (!hasAsrApiKey(settings)) {
-      setFlowError('请先填写 API Key', '导入失败')
-      addLog('错误: 未填写 API Key', 'error')
-      return
-    }
-
-    const previousController = transcribeAbortRef.current
-    previousController?.abort()
-    const controller = new AbortController()
-    transcribeAbortRef.current = controller
-    const isCurrentRun = () => transcribeAbortRef.current === controller
-
-    beginRun('正在连接音频源...')
-    if (previousController) addLog('已取消上一次转录请求', 'info')
-    addLog(`开始从链接导入音频: ${url}`, 'info')
-
-    try {
-      const handleRemoteAudioFetchEvent = (event: RemoteAudioFetchEvent) => {
-        if (!isCurrentRun()) return
-
-        if (event.type === 'download-start') {
-          const totalLabel = event.totalBytes === null ? '未知大小' : formatFileSize(event.totalBytes)
-          addLog(`开始下载: ${event.fileName} (${totalLabel})`, 'info')
-          setStatusMessage(`正在下载 ${event.fileName}...`)
-          return
-        }
-
-        if (event.type === 'download-progress') {
-          if (event.totalBytes !== null && event.percent !== null) {
-            setUploadProgress(event.percent)
-            setStatusMessage(
-              `正在下载 ${formatFileSize(event.receivedBytes)} / ${formatFileSize(event.totalBytes)}`
-            )
-            if (event.percent % 25 === 0) {
-              addLog(`下载进度: ${event.percent}%`, 'info')
-            }
-            return
-          }
-
-          setStatusMessage(`已下载 ${formatFileSize(event.receivedBytes)}`)
-          return
-        }
-
-        addLog(`下载完成: ${formatFileSize(event.receivedBytes)}`, 'success')
-      }
-
-      const audioFile = await fetchRemoteAudioForAsr(url, {
+    await runSelectedTranscription(
+      {
+        source: 'remote',
+        url,
         maxAudioBytes: fetchAudioMaxBytes,
-        onProgress: handleRemoteAudioFetchEvent,
-        signal: controller.signal,
-      })
-
-      if (!isCurrentRun()) return
-      transcribeAbortRef.current = null
-      setUploadProgress(0)
-      setStatusMessage('正在上传到识别服务...')
-      addLog('开始上传到 ASR 服务...', 'info')
-      await transcribe(audioFile, true)
-    } catch (e) {
-      if (!isCurrentRun()) return
-
-      if (e instanceof DOMException && e.name === 'AbortError') {
-        addLog('转录已取消', 'info')
-        setStatus('idle')
-        setStatusMessage('')
-        return
-      }
-
-      const errorMsg = e instanceof Error ? e.message : String(e)
-      setFlowError(`请求失败: ${errorMsg}`, '导入失败')
-      addLog(`导入失败: ${errorMsg}`, 'error')
-    } finally {
-      if (isCurrentRun()) {
-        transcribeAbortRef.current = null
-        setLoading(false)
-      }
-    }
+      },
+      '导入失败'
+    )
   }
 
   const handleFileSelect = (file: File): void => {
