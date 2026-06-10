@@ -21,8 +21,8 @@ jobs:
           # 获取 PR 中的所有提交
           commits=$(git log --format="%s" "origin/${{ github.base_ref }}..origin/${{ github.head_ref }}" 2>/dev/null || git log --format="%s" -n 20)
           
-          # 有效的 type 列表
-          valid_types="init|release|style|feat|fix|docs|refactor|perf|dx|workflow|types|wip|test|build|ci|chore|deps"
+          # 有效的提交标题格式：<emoji> <type>: <描述>
+          commit_title_pattern='^(🎉 init|✨ feat|🐛 fix|📝 docs|🎨 style|♿ style|♻️ refactor|⚡ perf|✅ test|🔨 build|👷 ci|❓ chore|⬆️ deps|🚀 release): .+'
           
           failed=0
           
@@ -31,8 +31,7 @@ jobs:
               continue
             fi
             
-            # 检查是否包含有效的 type
-            if echo "$msg" | grep -qE "($valid_types):"; then
+            if printf '%s\n' "$msg" | grep -qE "$commit_title_pattern"; then
               echo "✅ $msg"
             else
               echo "❌ $msg"
@@ -52,6 +51,7 @@ jobs:
             echo "  🐛 fix: 修复 bug"
             echo "  📝 docs: 文档修改"
             echo "  🎨 style: 代码风格修改"
+            echo "  ♿ style: 无障碍样式修改"
             echo "  ♻️ refactor: 代码重构"
             echo "  ⚡ perf: 性能优化"
             echo "  ✅ test: 测试用例"
@@ -59,6 +59,7 @@ jobs:
             echo "  👷 ci: CI 配置"
             echo "  ❓ chore: 其它修改"
             echo "  ⬆️ deps: 依赖项修改"
+            echo "  🚀 release: 发布新版本"
             echo ""
             exit 1
           fi
