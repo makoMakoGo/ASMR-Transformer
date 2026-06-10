@@ -116,11 +116,12 @@ cp .env.example .env
 
 说明：播放页通过 AList API 解析后，真实下载链接可能会跳到 `asmr.121231234.xyz`（已允许）。其它域名会被直接拒绝。
 
-1. 在主界面"在线链接"输入框粘贴链接
-2. 选择操作：
-   - **下载到本地** - 仅下载音频到 `./audio/` 目录，不转录
-   - **直接转录** - 下载并立即转录（需先配置 ASR API Key）
-3. 服务器会自动解析播放页面、跟随跳转、校验格式与大小（默认 100MB 内）
+1. 在主界面「在线链接」输入框粘贴链接
+2. 点击检查链接，页面会展示文件名、大小和类型
+3. 点击开始转录，浏览器通过服务端代理获取音频并发送给 ASR
+4. 服务器会自动解析播放页面、跟随跳转、校验格式与大小（默认 100MB 内）
+
+说明：AList 播放页解析出的真实下载链接只在服务端流转，不会返回给前端状态。
 
 可选环境变量：`FETCH_AUDIO_MAX_BYTES`（单位字节，默认 104857600）
 
@@ -146,20 +147,28 @@ cp .env.example .env
 ```plaintext
 ├── app/
 │   ├── api/
-│   │   ├── polish/route.ts   # LLM 润色（SSE 流式）
 │   │   ├── check-audio/route.ts   # 检查在线音频元信息（支持 AList 播放页面解析）
+│   │   ├── polish/route.ts        # LLM 润色（SSE 流式）
 │   │   ├── proxy-audio/route.ts   # 流式代理在线音频（前端显示下载进度）
+│   │   ├── runtime-config/route.ts # 浏览器运行时配置
 │   │   └── settings/route.ts      # WebUI 设置读写（写入 .env）
 │   ├── globals.css           # 全局样式（清新蓝调设计系统）
 │   ├── layout.tsx            # 根布局
 │   └── page.tsx              # 主页面组件
+├── components/               # 页面 Tab 与 UI 组件
+├── hooks/                    # 页面流程编排与状态 hooks
 ├── lib/
-│   ├── alist-utils.ts        # AList 解析工具
-│   ├── env-file.ts           # .env 读写工具（WebUI 保存设置）
-│   └── url-utils.ts          # URL 校验/白名单/私网拦截/扩展名 MIME 映射
+│   ├── app-settings.ts       # 设置类型、默认值、ASR/LLM 运行设置切片
+│   ├── browser-remote-audio.ts # 浏览器端远程音频获取
+│   ├── polish-run.ts         # 润色运行 Module
+│   ├── remote-audio-policy.ts # 远程音频来源策略
+│   ├── remote-audio.ts       # 服务端远程音频解析/检查/代理
+│   ├── settings-persistence.ts # .env 设置持久化
+│   ├── transcription-run.ts  # 本地/远程统一转录运行 Module
+│   └── url-utils.ts          # URL 校验 facade
+├── docs/adr/                 # 架构决策记录
 ├── docs/images/              # 图片资源
 ├── tests/                    # 测试文件
-│   ├── fixtures/             # 测试资源
 │   └── unit/                 # 单元测试
 └── package.json
 ```

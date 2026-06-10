@@ -21,22 +21,39 @@ jobs:
           # 获取 PR 中的所有提交
           commits=$(git log --format="%s" "origin/${{ github.base_ref }}..origin/${{ github.head_ref }}" 2>/dev/null || git log --format="%s" -n 20)
           
-          # 有效的提交标题格式：<emoji> <type>: <描述>
-          commit_title_pattern='^(🎉 init|✨ feat|🐛 fix|📝 docs|🎨 style|♿ style|♻️ refactor|⚡ perf|✅ test|🔨 build|👷 ci|❓ chore|⬆️ deps|🚀 release): .+'
-          
           failed=0
-          
+
           while IFS= read -r msg; do
             if [ -z "$msg" ]; then
               continue
             fi
-            
-            if printf '%s\n' "$msg" | grep -qE "$commit_title_pattern"; then
-              echo "✅ $msg"
-            else
-              echo "❌ $msg"
-              failed=1
-            fi
+
+            case "$msg" in
+              "🎉 init: "?*|\
+              "✨ feat: "?*|\
+              "🐛 fix: "?*|\
+              "📝 docs: "?*|\
+              "🎨 style: "?*|\
+              "💄 ui: "?*|\
+              "♻️ refactor: "?*|\
+              "⚡️ perf: "?*|\
+              "🧑‍💻 dx: "?*|\
+              "🔁 workflow: "?*|\
+              "🏷️ types: "?*|\
+              "🚧 wip: "?*|\
+              "✅ test: "?*|\
+              "🔨 build: "?*|\
+              "👷 ci: "?*|\
+              "❓ chore: "?*|\
+              "⬆️ deps: "?*|\
+              "🚀 release: "?*)
+                echo "✅ $msg"
+                ;;
+              *)
+                echo "❌ $msg"
+                failed=1
+                ;;
+            esac
           done <<< "$commits"
           
           if [ $failed -eq 1 ]; then
@@ -51,9 +68,13 @@ jobs:
             echo "  🐛 fix: 修复 bug"
             echo "  📝 docs: 文档修改"
             echo "  🎨 style: 代码风格修改"
-            echo "  ♿ style: 无障碍样式修改"
+            echo "  💄 ui: UI/UX 修改"
             echo "  ♻️ refactor: 代码重构"
-            echo "  ⚡ perf: 性能优化"
+            echo "  ⚡️ perf: 性能优化"
+            echo "  🧑‍💻 dx: 开发体验"
+            echo "  🔁 workflow: 工作流变动"
+            echo "  🏷️ types: 类型声明修改"
+            echo "  🚧 wip: 工作进行中"
             echo "  ✅ test: 测试用例"
             echo "  🔨 build: 构建相关"
             echo "  👷 ci: CI 配置"
