@@ -81,7 +81,7 @@ cp .env.example .env
    - 打开 WebUI → 「设置」面板修改并点击「保存」写回 `.env`
    - 设置页顶部提供「保存 / 重新加载 / 放弃改动」用于管理未保存改动
 
-可选环境变量：`APP_SETTINGS_ENV_FILE`（指定 WebUI 读写的 `.env` 文件路径，默认 `./.env`）
+WebUI 固定读写项目根目录的 `.env`。
 
 ### 语音识别 API（必填）
 
@@ -123,7 +123,7 @@ cp .env.example .env
 
 说明：AList 播放页解析出的真实下载链接只在服务端流转，不会返回给前端状态。
 
-可选环境变量：`FETCH_AUDIO_MAX_BYTES`（单位字节，默认 104857600）
+`.env` 配置项：`FETCH_AUDIO_MAX_BYTES`（单位字节，默认 104857600）
 
 ## 🔗 联动食用
 

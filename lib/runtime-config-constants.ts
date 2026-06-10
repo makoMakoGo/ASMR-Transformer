@@ -1,0 +1,1 @@
+export const DEFAULT_FETCH_AUDIO_MAX_BYTES = 100 * 1024 * 1024

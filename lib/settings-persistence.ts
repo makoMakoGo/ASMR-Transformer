@@ -30,14 +30,8 @@ const serializeSettingsOperation = async <T>(operation: () => Promise<T>): Promi
   }
 }
 
-export const getSettingsEnvFilePath = ({
-  configuredEnvFile = /* turbopackIgnore: true */ process.env.APP_SETTINGS_ENV_FILE || '.env',
-  cwd = /* turbopackIgnore: true */ process.cwd(),
-}: {
-  configuredEnvFile?: string
-  cwd?: string
-} = {}): string => {
-  return path.resolve(cwd, configuredEnvFile)
+export const getSettingsEnvFilePath = (): string => {
+  return path.resolve(/* turbopackIgnore: true */ process.cwd(), '.env')
 }
 
 export const isSettings = (value: unknown): value is Settings => {
@@ -73,21 +67,19 @@ export const buildSettingsResponse = ({
   },
 })
 
-export const loadSettings = async (envFilePath = getSettingsEnvFilePath()): Promise<SettingsPersistenceResult> => {
+export const loadSettings = async (): Promise<SettingsPersistenceResult> => {
   return serializeSettingsOperation(async () => {
+    const envFilePath = getSettingsEnvFilePath()
     const { exists, env } = await readEnvFile(envFilePath)
     return buildSettingsResponse({ envFilePath, exists, env })
   })
 }
 
-export const saveSettings = async (
-  settings: Settings,
-  envFilePath = getSettingsEnvFilePath()
-): Promise<SettingsPersistenceResult> => {
+export const saveSettings = async (settings: Settings): Promise<SettingsPersistenceResult> => {
   return serializeSettingsOperation(async () => {
+    const envFilePath = getSettingsEnvFilePath()
     const updates = settingsToEnv(settings)
     const { env: writtenEnv } = await writeEnvFile(envFilePath, updates)
-    for (const [key, value] of Object.entries(writtenEnv)) process.env[key] = value
 
     return buildSettingsResponse({
       envFilePath,

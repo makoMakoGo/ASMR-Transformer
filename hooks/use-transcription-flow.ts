@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState, type ChangeEvent } from 'react'
-import { DEFAULT_FETCH_AUDIO_MAX_BYTES } from '@/lib/runtime-config'
+import { DEFAULT_FETCH_AUDIO_MAX_BYTES } from '@/lib/runtime-config-constants'
 import { formatFileSize } from '@/lib/file-size'
 import { readJsonResponse, readResponseErrorMessage } from '@/lib/http-response'
 import type { Settings } from '@/lib/app-settings'

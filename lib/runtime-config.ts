@@ -1,7 +1,12 @@
-export const DEFAULT_FETCH_AUDIO_MAX_BYTES = 100 * 1024 * 1024
+import path from 'node:path'
+import { readEnvFile } from '@/lib/env-file'
+import { DEFAULT_FETCH_AUDIO_MAX_BYTES } from '@/lib/runtime-config-constants'
 
-export const getFetchAudioMaxBytes = (): number => {
-  const raw = process.env.FETCH_AUDIO_MAX_BYTES
+export { DEFAULT_FETCH_AUDIO_MAX_BYTES } from '@/lib/runtime-config-constants'
+
+const getRuntimeEnvFilePath = (): string => path.resolve(/* turbopackIgnore: true */ process.cwd(), '.env')
+
+const parseFetchAudioMaxBytes = (raw: string | undefined): number => {
   if (raw == null) return DEFAULT_FETCH_AUDIO_MAX_BYTES
 
   const trimmed = raw.trim()
@@ -17,3 +22,7 @@ export const getFetchAudioMaxBytes = (): number => {
   return value
 }
 
+export const getFetchAudioMaxBytes = async (): Promise<number> => {
+  const { env } = await readEnvFile(getRuntimeEnvFilePath())
+  return parseFetchAudioMaxBytes(env.FETCH_AUDIO_MAX_BYTES)
+}

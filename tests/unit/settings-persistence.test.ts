@@ -31,9 +31,10 @@ const buildSettings = (overrides: Partial<Settings> = {}): Settings => ({
 })
 
 describe('settings-persistence', () => {
-  it('resolves the settings env file path from cwd and configured path', () => {
-    expect(getSettingsEnvFilePath({ cwd: '/tmp/app', configuredEnvFile: '.env.local' })).toBe('/tmp/app/.env.local')
-    expect(getSettingsEnvFilePath({ cwd: '/tmp/app', configuredEnvFile: '/tmp/shared/.env' })).toBe('/tmp/shared/.env')
+  it('resolves the settings env file path from cwd only', () => {
+    vi.spyOn(process, 'cwd').mockReturnValue('/tmp/app')
+
+    expect(getSettingsEnvFilePath()).toBe('/tmp/app/.env')
   })
 
   it('validates complete settings payloads', () => {
@@ -72,8 +73,9 @@ describe('settings-persistence', () => {
     const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'asmr-settings-missing-'))
     tempDirs.push(tempDir)
     const envPath = path.join(tempDir, '.env')
+    vi.spyOn(process, 'cwd').mockReturnValue(tempDir)
 
-    await expect(loadSettings(envPath)).resolves.toEqual({
+    await expect(loadSettings()).resolves.toEqual({
       success: true,
       settings: DEFAULT_SETTINGS,
       envFile: {
@@ -87,9 +89,10 @@ describe('settings-persistence', () => {
     const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'asmr-settings-load-'))
     tempDirs.push(tempDir)
     const envPath = path.join(tempDir, '.env')
+    vi.spyOn(process, 'cwd').mockReturnValue(tempDir)
     await fs.writeFile(envPath, 'ASR_API_KEY=loaded\nLLM_MODEL=LoadedModel\n')
 
-    await expect(loadSettings(envPath)).resolves.toMatchObject({
+    await expect(loadSettings()).resolves.toMatchObject({
       success: true,
       settings: {
         ...DEFAULT_SETTINGS,
@@ -107,12 +110,13 @@ describe('settings-persistence', () => {
     const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'asmr-settings-save-'))
     tempDirs.push(tempDir)
     const envPath = path.join(tempDir, '.env')
+    vi.spyOn(process, 'cwd').mockReturnValue(tempDir)
 
     const result = await saveSettings(buildSettings({
       apiKey: ' asr-key ',
       apiUrl: ' ',
       customInstructions: ' custom prompt ',
-    }), envPath)
+    }))
 
     expect(result.settings).toEqual({
       ...DEFAULT_SETTINGS,
@@ -120,20 +124,21 @@ describe('settings-persistence', () => {
       llmApiKey: 'llm-key',
       customInstructions: 'custom prompt',
     })
-    expect(process.env.ASR_API_KEY).toBe('asr-key')
-    expect(process.env.ASR_API_URL).toBe(DEFAULT_SETTINGS.apiUrl)
-    await expect(fs.readFile(envPath, 'utf8')).resolves.toContain('CUSTOM_INSTRUCTIONS="custom prompt"')
+    const content = await fs.readFile(envPath, 'utf8')
+    expect(content).toContain('ASR_API_KEY=asr-key')
+    expect(content).toContain(`ASR_API_URL=${DEFAULT_SETTINGS.apiUrl}`)
+    expect(content).toContain('CUSTOM_INSTRUCTIONS="custom prompt"')
   })
 
   it('returns the settings parsed from the written env file', async () => {
     const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'asmr-settings-written-env-'))
     tempDirs.push(tempDir)
-    const envPath = path.join(tempDir, '.env')
+    vi.spyOn(process, 'cwd').mockReturnValue(tempDir)
 
     const result = await saveSettings(buildSettings({
       apiKey: 'asr key with spaces',
       customInstructions: 'line one\nline two',
-    }), envPath)
+    }))
 
     expect(result.settings).toEqual({
       ...DEFAULT_SETTINGS,
@@ -141,17 +146,19 @@ describe('settings-persistence', () => {
       llmApiKey: 'llm-key',
       customInstructions: 'line one\nline two',
     })
-    expect(process.env.ASR_API_KEY).toBe('asr key with spaces')
-    expect(process.env.CUSTOM_INSTRUCTIONS).toBe('line one\nline two')
+    const content = await fs.readFile(path.join(tempDir, '.env'), 'utf8')
+    expect(content).toContain('ASR_API_KEY="asr key with spaces"')
+    expect(content).toContain('CUSTOM_INSTRUCTIONS="line one\\nline two"')
   })
 
   it('preserves unrelated env lines when saving settings', async () => {
     const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'asmr-settings-preserve-'))
     tempDirs.push(tempDir)
     const envPath = path.join(tempDir, '.env')
+    vi.spyOn(process, 'cwd').mockReturnValue(tempDir)
     await fs.writeFile(envPath, '# header\nMY_OTHER_VAR=keep\nASR_API_KEY=old\n')
 
-    await saveSettings(buildSettings({ apiKey: 'new-key' }), envPath)
+    await saveSettings(buildSettings({ apiKey: 'new-key' }))
 
     const content = await fs.readFile(envPath, 'utf8')
     expect(content).toContain('# header')
@@ -162,7 +169,7 @@ describe('settings-persistence', () => {
   it('loads the same settings after saving them', async () => {
     const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'asmr-settings-roundtrip-'))
     tempDirs.push(tempDir)
-    const envPath = path.join(tempDir, '.env')
+    vi.spyOn(process, 'cwd').mockReturnValue(tempDir)
     const settings = buildSettings({
       apiKey: 'roundtrip-asr',
       apiUrl: 'https://asr.example/v1',
@@ -173,8 +180,8 @@ describe('settings-persistence', () => {
       customInstructions: 'roundtrip prompt',
     })
 
-    const saved = await saveSettings(settings, envPath)
-    const loaded = await loadSettings(envPath)
+    const saved = await saveSettings(settings)
+    const loaded = await loadSettings()
 
     expect(loaded.settings).toEqual(saved.settings)
   })
@@ -183,6 +190,7 @@ describe('settings-persistence', () => {
     const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'asmr-settings-queue-'))
     tempDirs.push(tempDir)
     const envPath = path.join(tempDir, '.env')
+    vi.spyOn(process, 'cwd').mockReturnValue(tempDir)
     const readSpy = vi.spyOn(fs, 'readFile')
     let releaseRead: (() => void) | null = null
     readSpy.mockImplementationOnce(async () => {
@@ -192,8 +200,8 @@ describe('settings-persistence', () => {
       return 'ASR_API_KEY=queued\n'
     })
 
-    const loadPromise = loadSettings(envPath)
-    const savePromise = saveSettings(buildSettings({ apiKey: 'saved-after-load' }), envPath)
+    const loadPromise = loadSettings()
+    const savePromise = saveSettings(buildSettings({ apiKey: 'saved-after-load' }))
     await Promise.resolve()
     await Promise.resolve()
 

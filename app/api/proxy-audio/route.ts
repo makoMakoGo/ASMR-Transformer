@@ -16,7 +16,7 @@ export const runtime = 'nodejs'
  * 前端可以显示下载进度
  */
 export async function POST(req: NextRequest): Promise<Response> {
-  const maxAudioBytes = getFetchAudioMaxBytes()
+  const maxAudioBytes = await getFetchAudioMaxBytes()
 
   let body: Record<string, unknown> | null = null
   try {
