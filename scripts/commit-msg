@@ -10,16 +10,9 @@ commit_msg=$(cat "$commit_msg_file")
 # 提取第一行（标题）
 title=$(echo "$commit_msg" | head -n 1)
 
-# 检查是否包含有效的 type
-valid=0
+commit_title_pattern='^(🎉 init|✨ feat|🐛 fix|📝 docs|🎨 style|♿ style|♻️ refactor|⚡ perf|✅ test|🔨 build|👷 ci|❓ chore|⬆️ deps|🚀 release): .+'
 
-case "$title" in
-    *"init:"*|*"release:"*|*"style:"*|*"feat:"*|*"fix:"*|*"docs:"*|*"refactor:"*|*"perf:"*|*"dx:"*|*"workflow:"*|*"types:"*|*"wip:"*|*"test:"*|*"build:"*|*"ci:"*|*"chore:"*|*"deps:"*)
-        valid=1
-        ;;
-esac
-
-if [ $valid -eq 0 ]; then
+if ! printf '%s\n' "$title" | grep -qE "$commit_title_pattern"; then
     echo ""
     echo "❌ 提交信息格式错误!"
     echo ""
@@ -31,6 +24,7 @@ if [ $valid -eq 0 ]; then
     echo "  🐛 fix: 修复 bug"
     echo "  📝 docs: 文档修改"
     echo "  🎨 style: 代码风格修改"
+    echo "  ♿ style: 无障碍样式修改"
     echo "  ♻️ refactor: 代码重构"
     echo "  ⚡ perf: 性能优化"
     echo "  ✅ test: 测试用例"
