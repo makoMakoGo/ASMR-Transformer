@@ -9,6 +9,7 @@ node_modules
 *.log
 coverage
 .codex
+.vscode/
 .serena/
 .antigravitycli/
 # Downloaded audio files
