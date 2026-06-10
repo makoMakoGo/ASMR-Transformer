@@ -8,6 +8,7 @@ import {
   getTranscriptionDisplayText,
   getTranscriptionText,
 } from '@/lib/transcription-state'
+import { hasAsrApiKey } from '@/lib/asr-transcription'
 import { LogsTab } from '@/components/LogsTab'
 import { PolishTab } from '@/components/PolishTab'
 import { SettingsTab } from '@/components/SettingsTab'
@@ -62,12 +63,8 @@ export default function Home(): ReactElement {
   const transcriptionRawText = getTranscriptionText(transcriptionFlow.transcriptionResult)
   const polishedText = getPolishText(polishFlow.result)
   const polishedDisplayText = polishFlow.result.kind === 'error' ? polishFlow.result.message : polishedText
-  const hasApiKey = settingsState.settings.apiKey.trim().length > 0
-  const canTranscribe = !!transcriptionFlow.audioInfo && hasApiKey && !transcriptionFlow.loading
+  const hasApiKey = hasAsrApiKey(settingsState.settings)
   const canPolish = canPolishTranscription(transcriptionFlow.transcriptionResult) && !polishFlow.polishing
-  const showIndeterminateProgress =
-    (transcriptionFlow.status === 'processing' && transcriptionFlow.uploadProgress === 0) ||
-    transcriptionFlow.status === 'transcribing'
 
   useEffect(() => {
     if (polishedText && !polishFlow.polishing) {
@@ -133,10 +130,21 @@ export default function Home(): ReactElement {
           <div className="p-5">
             {currentTab === 'source' && (
               <SourceTab
-                transcriptionFlow={transcriptionFlow}
+                fileInputRef={transcriptionFlow.fileInputRef}
+                audioUrlInput={transcriptionFlow.audioUrlInput}
+                checking={transcriptionFlow.checking}
+                audioInfo={transcriptionFlow.audioInfo}
+                loading={transcriptionFlow.loading}
+                status={transcriptionFlow.status}
+                uploadProgress={transcriptionFlow.uploadProgress}
+                statusMessage={transcriptionFlow.statusMessage}
+                onFileChange={transcriptionFlow.handleFileChange}
+                onFileSelect={transcriptionFlow.handleFileSelect}
+                onAudioUrlInputChange={transcriptionFlow.setAudioUrlInput}
+                onCheckAudioUrl={transcriptionFlow.checkAudioUrl}
+                onClearAudio={transcriptionFlow.clearAudio}
+                onStartTranscribe={transcriptionFlow.startTranscribe}
                 hasApiKey={hasApiKey}
-                canTranscribe={canTranscribe}
-                showIndeterminateProgress={showIndeterminateProgress}
               />
             )}
 
